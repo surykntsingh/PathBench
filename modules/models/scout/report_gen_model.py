@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules.models.cgvlt.modules.transformer import EncoderDecoder
+from modules.models.scout.modules.transformer import EncoderDecoder
 
 
 class ReportGenModel(nn.Module):

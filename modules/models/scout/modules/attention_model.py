@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules.models.cgvlt.modules.caption_model import CaptionModel
+from modules.models.scout.modules.caption_model import CaptionModel
 from utils import utils
 
 

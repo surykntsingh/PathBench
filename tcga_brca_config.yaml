@@ -2,7 +2,7 @@ train:
   max_fea_length: 2000
   max_seq_length: 600
   threshold: 1
-  num_workers: 1
+  num_workers: 2
   batch_size: 1
   max_epochs: 200
   epochs_val: 1
@@ -14,41 +14,43 @@ train:
   num_layers: 3
   dropout: 0.1
   dropout_mlp: 0.1
-  weight_decay: 0.00003
+  weight_decay: 5.0e-5
   logit_layers: 3
   bos_idx: 0
   eos_idx: 0
   pad_idx: 0
   use_bn: 0
   drop_prob_lm: 0.4
-  concept_lambda: 0
   sample_method: beam_search
-  beam_size: 3
+  concept_lambda: 1
   diversity_lambda: 0.7
-  temperature: 0.7
+    #length_penalty: 'wu_0.7'
+    # diversity_lambda: 0.6
+  beam_size: 3
+  temperature: 0.2
   sample_n: 1
-  group_size: 3
+  group_size: 1
   output_logsoftmax: 1
   decoding_constraint: 1
   suppress_UNK: 1
   block_trigrams: 1
-  lr: 5.0e-05
-  lr_patience: 2
+  lr: 2.0e-05
+  lr_patience: 4
   d1: 768
   d2: 768
   gd: 512
   gcd: 49
-  embeddings_path: /mnt/surya/dataset/TCGA_processed/brca_v2/slide_features_titan
-  embeddings_path_2: /mnt/surya/dataset/TCGA_processed/brca_v2/features_conch_v15
-  gecko_emb_path: /mnt/surya/dataset/TCGA_processed/brca/gecko/features
-  reports_json_path: /mnt/surya/dataset/TCGA_processed/brca_v2/tcga_brca_reports_splits.json
-  ckpt_path: /mnt/surya/projects/tcga_brca_models
-  model_load_path: /mnt/surya/projects/tcga_brca_models/20251121/192613/model_epoch=24_val_loss=1.29339_val_reg=0.00000.ckpt
-  results_path: /mnt/surya/projects/tcga_brca_results
-  predict_embeddings_path_1: /mnt/surya/dataset/TCGA_processed/brca_v2/slide_features_titan
-  predict_embeddings_path_2: /mnt/surya/dataset/TCGA_processed/brca_v2/features_conch_v15
-  gecko_predict_emb_path: /mnt/surya/dataset/TCGA_processed/brca/gecko/features
-  devices: 8
+  data_path_slide: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/slide_features_titan
+  data_path_patch: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/features_conch_v15
+  data_path_concept: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca/gecko/features
+  reports_json_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/tcga_brca_reports_splits.json
+  ckpt_path: /lustre/nvwulf/home/sbsingh/exp1/brca
+  model_load_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/models/tcga_brca/model_epoch=28_val_loss=0.68605_val_coco_BLEU_4=0.11445.ckpt
+  # results_path: /lustre/nvwulf/home/sbsingh/tcga_brca/tcga_braca_new_tokenizer
+  predict_embeddings_path_1: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/slide_features_titan
+  predict_embeddings_path_2: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/features_conch_v15
+  gecko_predict_emb_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca/gecko/features
+  devices: 4
   fast_dev_run: false
   num_folds: 3
   resume: false

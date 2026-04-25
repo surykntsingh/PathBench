@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from modules.models.cgvlt.modules.common import SublayerConnection, LayerNorm
+from modules.models.scout.modules.common import SublayerConnection, LayerNorm
 from utils import utils
 from utils.utils import clones
 

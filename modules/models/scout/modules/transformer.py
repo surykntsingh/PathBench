@@ -5,10 +5,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules.models.cgvlt.modules.attention_model import AttModel
-from modules.models.cgvlt.modules.common import subsequent_mask, LayerNorm
-from modules.models.cgvlt.modules.decoder import DecoderLayer, Decoder
-from modules.models.cgvlt.modules.encoder import Encoder, EncoderLayer
+from modules.models.scout.modules.attention_model import AttModel
+from modules.models.scout.modules.common import subsequent_mask, LayerNorm
+from modules.models.scout.modules.decoder import DecoderLayer, Decoder
+from modules.models.scout.modules.encoder import Encoder, EncoderLayer
 from utils.utils import pad_tokens, pack_wrapper, clones
 
 

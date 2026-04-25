@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 
-from modules.models.cgvlt.modules.common import LayerNorm, SublayerConnection, ConceptSublayer
+from modules.models.scout.modules.common import LayerNorm, SublayerConnection, ConceptSublayer
 from utils import utils
 from utils.utils import clones
 

@@ -12,14 +12,14 @@ class EmbeddingDataset(Dataset):
         reports = read_json_file(args.reports_json_path)[dataset_type]
         self.__reports = {report['id']: report['report'] for report in reports}
         self.__tokenizer = tokenizer
-        self.__embeddings_path = args.embeddings_path
+        self.__data_path_slide = args.data_path_slide
         self.__max_seq_length = args.max_seq_length
-        self.__embeddings_path_2 = args.embeddings_path_2
-        self.__gecko_emb_path = args.gecko_emb_path
+        self.__data_path_patch = args.data_path_patch
+        self.__data_path_concept = args.data_path_concept
 
-        files = os.listdir(args.embeddings_path)
-        files_1 = os.listdir(args.embeddings_path_2)
-        files_2 = os.listdir(args.gecko_emb_path)
+        files = os.listdir(self.__data_path_slide)
+        files_1 = os.listdir(self.__data_path_patch)
+        files_2 = os.listdir(self.__data_path_concept)
         # slides = self.__reports.keys()
 
         # self.__slides = [file.split('.')[0] for file in files if file in files_1 and file in files_2 and file.split('.')[0] in slides]
@@ -46,7 +46,7 @@ class EmbeddingDataset(Dataset):
 
     def __getitem__(self, idx):
         slide_id = self.__slides[idx]
-        with h5py.File(f'{self.__embeddings_path}/{slide_id}.h5', "r") as h5_file:
+        with h5py.File(f'{self.__data_path_slide}/{slide_id}.h5', "r") as h5_file:
 
             embeddings_np = h5_file["features"][:]
 
@@ -61,11 +61,11 @@ class EmbeddingDataset(Dataset):
             report_masks = [1] * len(report_ids)
             # seq_length = len(report_ids)
 
-        with h5py.File(f'{self.__embeddings_path_2}/{slide_id}.h5', "r") as h5_file:
+        with h5py.File(f'{self.__data_path_patch}/{slide_id}.h5', "r") as h5_file:
             embeddings_np = h5_file["features"][:]
             patch_embedding = torch.tensor(embeddings_np)
 
-        with h5py.File(f'{self.__gecko_emb_path}/{slide_id[:12]}.h5', "r") as h5_file:
+        with h5py.File(f'{self.__data_path_concept}/{slide_id[:12]}.h5', "r") as h5_file:
             bag_feats_deep_np = h5_file["bag_feats_deep"][:]
             bag_feats_np = h5_file["bag_feats"][:]
 
