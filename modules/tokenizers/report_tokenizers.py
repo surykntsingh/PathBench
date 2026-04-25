@@ -86,7 +86,7 @@ class Tokenizer:
         # print(f'ids: {ids}, txt: {txt}')
         return txt
 
-    def batch_decode(self, ids_batch):
+    def decode_batch(self, ids_batch):
         # print(f'ids_batch: {ids_batch}, {ids_batch.shape}')
         out = []
         for ids in ids_batch:

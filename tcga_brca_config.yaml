@@ -63,3 +63,4 @@ train:
   monitor_mode: max
   monitor_metric: BLEU_4
   early_stop: 20
+  unused_params: false

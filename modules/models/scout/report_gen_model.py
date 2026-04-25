@@ -9,7 +9,7 @@ class ReportGenModel(nn.Module):
 
     def __init__(self, args, tokenizer):
         super().__init__()
-        self.__tokenizer = tokenizer
+        self.tokenizer = tokenizer
 
         self.prompt = nn.Parameter(torch.randn(1, 1, args.d_vf))
 
