@@ -53,13 +53,15 @@ class EmbeddingDataset(Dataset):
             slide_embedding = torch.tensor(embeddings_np)
             report_text = self.__reports[slide_id]
             report_ids = self.__tokenizer(report_text)
+            seq_length = min(len(report_ids), self.__max_seq_length)
 
-            if len(report_ids) < self.__max_seq_length:
+            if len(report_ids) > self.__max_seq_length:
+                report_ids = report_ids[:self.__max_seq_length]
+            elif len(report_ids) < self.__max_seq_length:
                 padding = [0] * (self.__max_seq_length-len(report_ids))
                 report_ids.extend(padding)
 
-            report_masks = [1] * len(report_ids)
-            # seq_length = len(report_ids)
+            report_masks = [1] * seq_length + [0] * (self.__max_seq_length - seq_length)
 
         with h5py.File(f'{self.__data_path_patch}/{slide_id}.h5', "r") as h5_file:
             embeddings_np = h5_file["features"][:]
