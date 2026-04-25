@@ -49,10 +49,8 @@ def init_seeds(seed=0, cuda_deterministic=True):
 @app.command()
 def train(config_file_path: str='config.yaml', notes: str=''):
     local_rank = int(os.environ['LOCAL_RANK'])
-    world_size = int(os.environ['WORLD_SIZE'])
 
     args = get_params_for_key(config_file_path, "train")
-    args.lr = world_size
 
     setup(args.devices)
     torch.cuda.set_device(local_rank)
