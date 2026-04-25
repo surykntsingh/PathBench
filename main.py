@@ -7,10 +7,10 @@ import numpy as np
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from modules.datamodules.cgvlt.dataloaders import EmbeddingDataLoader
+from modules.datamodules.scout.dataloaders import EmbeddingDataLoader
 from modules.loss import compute_loss
 from modules.metrics import compute_scores
-from modules.models.cgvlt.report_gen_model import ReportGenModel
+from modules.models.scout.report_gen_model import ReportGenModel
 from modules.optimizers.optimizers import build_optimizer, build_lr_scheduler
 from modules.tokenizers.report_tokenizers import Tokenizer
 from modules.trainers.trainer import Trainer
