@@ -23,14 +23,14 @@ class ReportGenModel(nn.Module):
             nn.Linear(d, d),
             nn.LayerNorm(d),
         )
-        d1 = args.d1
-        d2 = args.d2
-        gd = args.gd
-        gcd = args.gcd
+        d_slide = args.d_slide
+        d_patch = args.d_patch
+        d_concept_deep = args.d_concept_deep
+        d_concept = args.d_concept
         self.mlp_slide_adapter = nn.Sequential(
-            nn.Linear(d1, 2 * d1),
+            nn.Linear(d_slide, 2 * d_slide),
             nn.ReLU(),
-            nn.Linear(2 * d1, 2*d),
+            nn.Linear(2 * d_slide, 2*d),
             nn.ReLU(),
             nn.Dropout(args.dropout_mlp),
             nn.Linear(2*d, d),
@@ -38,9 +38,9 @@ class ReportGenModel(nn.Module):
         )
 
         self.mlp_patch_adapter = nn.Sequential(
-            nn.Linear(d2, 2 * d2),
+            nn.Linear(d_patch, 2 * d_patch),
             nn.ReLU(),
-            nn.Linear(2 * d2, 2 * d),
+            nn.Linear(2 * d_patch, 2 * d),
             nn.ReLU(),
             nn.Dropout(args.dropout_mlp),
             nn.Linear(2 * d, d),
@@ -48,9 +48,9 @@ class ReportGenModel(nn.Module):
         )
 
         self.mlp_gecko_deep_adapter = nn.Sequential(
-            nn.Linear(gd, 2 * gd),
+            nn.Linear(d_concept_deep, 2 * d_concept_deep),
             nn.ReLU(),
-            nn.Linear(2 * gd, 2 * d),
+            nn.Linear(2 * d_concept_deep, 2 * d),
             nn.ReLU(),
             nn.Dropout(args.dropout_mlp),
             nn.Linear(2 * d, d),
@@ -58,9 +58,9 @@ class ReportGenModel(nn.Module):
         )
 
         self.mlp_gecko_concept_adapter = nn.Sequential(
-            nn.Linear(gcd, 2 * gcd),
+            nn.Linear(d_concept, 2 * d_concept),
             nn.ReLU(),
-            nn.Linear(2 * gcd, 2 * d),
+            nn.Linear(2 * d_concept, 2 * d),
             nn.ReLU(),
             nn.Dropout(args.dropout_mlp),
             nn.Linear(2 * d, d),

@@ -7,13 +7,13 @@ train:
   max_epochs: 200
   epochs_val: 1
   start_val: 1
-  d_model: 768
-  d_ff: 768
-  d_vf: 768
-  num_heads: 4
+  d_model: 1024
+  d_ff: 1024
+  d_vf: 1024
+  num_heads: 8
   num_layers: 3
   dropout: 0.1
-  dropout_mlp: 0.1
+  dropout_mlp: 0.2
   weight_decay: 5.0e-5
   logit_layers: 3
   bos_idx: 0
@@ -22,10 +22,8 @@ train:
   use_bn: 0
   drop_prob_lm: 0.4
   sample_method: beam_search
-  concept_lambda: 1
-  diversity_lambda: 0.7
-    #length_penalty: 'wu_0.7'
-    # diversity_lambda: 0.6
+  g_lambda: 0.07
+  loss_type: hybrid
   beam_size: 3
   temperature: 0.2
   sample_n: 1
@@ -34,23 +32,23 @@ train:
   decoding_constraint: 1
   suppress_UNK: 1
   block_trigrams: 1
-  lr: 2.0e-05
-  lr_patience: 4
-  d1: 768
-  d2: 768
-  gd: 512
-  gcd: 49
+  lr: 7.0e-05
+  lr_patience: 6
+  d_slide: 768
+  d_patch: 768
+  d_concept_deep: 512
+  d_concept: 49
   data_path_slide: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/slide_features_titan
   data_path_patch: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/features_conch_v15
   data_path_concept: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca/gecko/features
   reports_json_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/tcga_brca_reports_splits.json
-  ckpt_path: /lustre/nvwulf/home/sbsingh/exp1/brca
-  model_load_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/models/tcga_brca/model_epoch=28_val_loss=0.68605_val_coco_BLEU_4=0.11445.ckpt
+#  ckpt_path: /lustre/nvwulf/home/sbsingh/exp1/brca
+  model_load_path: results/tcga_brca/1/model_best.pth
   # results_path: /lustre/nvwulf/home/sbsingh/tcga_brca/tcga_braca_new_tokenizer
   predict_embeddings_path_1: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/slide_features_titan
   predict_embeddings_path_2: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/features_conch_v15
   gecko_predict_emb_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca/gecko/features
-  devices: 4
+  devices: 8
   fast_dev_run: false
   num_folds: 3
   resume: false

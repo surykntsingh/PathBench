@@ -1,5 +1,6 @@
 import os
 from abc import abstractmethod
+from datetime import datetime
 
 import time
 import torch
@@ -8,10 +9,12 @@ from numpy import inf
 from tqdm import tqdm
 import torch.distributed as dist
 
+from utils.utils import write_json_file
+
 
 class BaseTrainer(object):
-    def __init__(self, model, criterion, metric_ftns, optimizer, args, lr_scheduler, train_dataloader, val_dataloader,
-                 test_dataloader):
+    def __init__(self, args, model, criterion, metric_ftns, optimizer=None, lr_scheduler=None, train_dataloader=None, val_dataloader=None,
+                 test_dataloader=None):
 
         self.args = args
 
@@ -100,49 +103,31 @@ class BaseTrainer(object):
                 self._save_checkpoint(epoch, save_best=best)
         if rank == 0:
             self._print_best()
-            self._print_best_to_file()
+            self._print_best_to_file('val')
 
     def test(self, rank):
-        log = {}
+        log, predictions = self._test_epoch(rank,{})
 
-        if not os.path.exists(os.path.join(self.checkpoint_dir, 'reports')) and rank == 0:
-            os.mkdir(os.path.join(self.checkpoint_dir, 'reports'))
-
-        self.model.eval()
-        with torch.no_grad():
-            test_gts, test_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(tqdm(self.test_dataloader)):
-                images, reports_ids, reports_masks = images.cuda(), reports_ids.cuda(), reports_masks.cuda()
-                output = self.model(images, mode='sample')
-                reports = self.model.module.tokenizer.decode_batch(output.cpu().numpy())  # +.module
-                ground_truths = self.model.module.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())  # +.module
-                test_res.extend(reports)
-                test_gts.extend(ground_truths)
-                for i in range(len(reports)):
-                    with open(os.path.join(self.checkpoint_dir, 'reports', images_id[i]) + '.txt', 'w') as f:
-                        content = {}
-                        content['predict'] = reports[i]
-                        content['target'] = ground_truths[i]
-                        f.write(str(content))
-            test_met = self.metric_ftns({i: [gt] for i, gt in enumerate(test_gts)},
-                                        {i: [re] for i, re in enumerate(test_res)})
-            log.update(**{'test_' + k: v for k, v in test_met.items()})
+        if rank == 0:
+            self._print_best()
+            self._print_best_to_file('test')
 
         print('Results in test set')
         for key, value in log.items():
             print('\t{:15s}: {}'.format(str(key), value))
 
-    def _print_best_to_file(self):
-        crt_time = time.asctime(time.localtime(time.time()))
-        self.best_recorder['val']['time'] = crt_time
-        self.best_recorder['test']['time'] = crt_time
-        self.best_recorder['val']['seed'] = self.args.seed
-        self.best_recorder['test']['seed'] = self.args.seed
-        self.best_recorder['val']['best_model_from'] = 'val'
-        self.best_recorder['test']['best_model_from'] = 'test'
+        self._save_predictions(predictions)
+
+    def _print_best_to_file(self, stage):
 
         if not os.path.exists(self.args.record_dir):
             os.makedirs(self.args.record_dir)
+
+        date = datetime.now()
+        self.best_recorder['date'] = date.strftime("%Y-%m-%d %H:%M:%S")
+        # self.best_recorder['seed'] = self.args.seed
+        metrics_df = pd.DataFrame([self.best_recorder])
+        metrics_df.to_csv(f'{self.args.record_dir}/results_{stage}.csv', mode='a')
 
     def _save_checkpoint(self, epoch, save_best=False):
         state = {
@@ -159,34 +144,29 @@ class BaseTrainer(object):
             torch.save(state, best_path)
             print("Saving current best: model_best.pth ...")
 
-    def _resume_checkpoint(self, resume_path):
-        resume_path = str(resume_path)
-        print("Loading checkpoint: {} ...".format(resume_path))
-        checkpoint = torch.load(resume_path)
-        self.start_epoch = checkpoint['epoch'] + 1
-        self.mnt_best = checkpoint['monitor_best']
-        self.model.load_state_dict(checkpoint['state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        print("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
+    def _save_predictions(self, predictions):
+        os.makedirs(self.args.record_dir, exist_ok=True)
+        results_path = f'{self.args.record_dir}/predictions.json'
+        write_json_file(predictions, results_path)
 
     def _record_best(self, log):
 
-        improved_val = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.best_recorder['val'][
+        improved_val = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.best_recorder[
             self.mnt_metric]) or \
-                       (self.mnt_mode == 'max' and log[self.mnt_metric] >= self.best_recorder['val'][self.mnt_metric])
+                       (self.mnt_mode == 'max' and log[self.mnt_metric] >= self.best_recorder[self.mnt_metric])
         if improved_val:
-            self.best_recorder['val'].update(log)
+            self.best_recorder.update(log)
 
     def _print_best(self):
         print('Best results (w.r.t {}) in validation set:'.format(self.args.monitor_metric))
-        for key, value in self.best_recorder['val'].items():
+        for key, value in self.best_recorder.items():
             print('\t{:15s}: {}'.format(str(key), value))
 
 
 class Trainer(BaseTrainer):
-    def __init__(self, model, criterion, metric_ftns, optimizer, args, lr_scheduler, train_dataloader, val_dataloader,
-                 test_dataloader):
-        super(Trainer, self).__init__(model, criterion, metric_ftns, optimizer, args, lr_scheduler, train_dataloader,
+    def __init__(self, args, model, criterion, metric_ftns, optimizer, lr_scheduler, train_dataloader=None, val_dataloader=None,
+                 test_dataloader=None):
+        super(Trainer, self).__init__(args, model, criterion, metric_ftns, optimizer, lr_scheduler, train_dataloader,
                                       val_dataloader,
                                       test_dataloader)
 
@@ -199,8 +179,8 @@ class Trainer(BaseTrainer):
                 tqdm(self.train_dataloader, desc='Training')):
             # print(f'features: {features.shape}')
             reports_ids, reports_masks = reports_ids.cuda(), reports_masks.cuda()
-            output, _ = self.model(features, reports_ids, mode='train')
-            loss = self.criterion(output, reports_ids, reports_masks)
+            output, weights = self.model(features, reports_ids, mode='train')
+            loss = self.criterion(output, reports_ids, reports_masks, weights, self.args.g_lambda)
             train_loss += loss.item()
             # print(train_loss)
             self.optimizer.zero_grad()
@@ -245,7 +225,7 @@ class Trainer(BaseTrainer):
         dist.barrier()
         self.model.eval()
         with torch.no_grad():
-            test_gts_ids, test_res_ids = [], []
+            slides, test_gts_ids, test_res_ids = [], [], []
             for batch_idx, (slide_ids, features, reports_ids, reports_masks) in enumerate(
                     tqdm(self.test_dataloader, desc='Testing')):
                 reports_ids, reports_masks = reports_ids.cuda(), reports_masks.cuda()
@@ -253,6 +233,7 @@ class Trainer(BaseTrainer):
 
                 test_res_ids.append(output)  # predict
                 test_gts_ids.append(reports_ids)  # ground truth
+                slides.append(slide_ids)
             test_res_ids = distributed_concat(torch.cat(test_res_ids, dim=0),
                                               len(self.test_dataloader.dataset)).cpu().numpy()
             test_gts_ids = distributed_concat(torch.cat(test_gts_ids, dim=0),
@@ -265,7 +246,15 @@ class Trainer(BaseTrainer):
             log.update(**{'test_' + k: v for k, v in test_met.items()})
             print("test_met: ", test_met)
 
-        return log
+            predictions = []
+            for i,slide_id in enumerate(slides):
+                predictions.append({
+                    'slide_id': slide_id,
+                    'prediction': test_res[i],
+                    'ground_truth': test_gts[i]
+                })
+
+        return log, predictions
 
 
 def distributed_concat(tensor, num_total_examples):

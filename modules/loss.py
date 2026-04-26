@@ -14,8 +14,19 @@ class LanguageModelCriterion(nn.Module):
 
         return output
 
+def get_attn_regularization(weights, eps=1e-8):
+    # Attention Regularization
 
-def compute_loss(output, reports_ids, reports_masks):
+    entropy = - (weights * (weights + eps).log()).sum(dim=-1)  # [B, L, H]
+    return entropy.mean()
+
+
+def compute_hybrid_loss(output, reports_ids, reports_masks, weights, g_lambda):
+    nll_loss = compute_nll_loss(output, reports_ids, reports_masks)
+    reg_g = get_attn_regularization(weights)
+    return nll_loss + g_lambda * reg_g
+
+def compute_nll_loss(output, reports_ids, reports_masks):
     criterion = LanguageModelCriterion()
     loss = criterion(output, reports_ids[:, 1:], reports_masks[:, 1:]).mean()
     return loss

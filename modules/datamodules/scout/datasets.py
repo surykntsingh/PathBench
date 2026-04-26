@@ -9,37 +9,50 @@ from utils.utils import read_json_file
 class EmbeddingDataset(Dataset):
 
     def __init__(self, args, tokenizer, dataset_type):
-        reports = read_json_file(args.reports_json_path)[dataset_type]
-        self.__reports = {report['id']: report['report'] for report in reports}
+
         self.__tokenizer = tokenizer
         self.__data_path_slide = args.data_path_slide
         self.__max_seq_length = args.max_seq_length
         self.__data_path_patch = args.data_path_patch
         self.__data_path_concept = args.data_path_concept
+        self.get_slides_brca(dataset_type, args.reports_json_path)
+
+    def get_slides(self, dataset_type, reports_json_path):
+        reports = read_json_file(reports_json_path)[dataset_type]
+        self.__reports = {report['id'].split('.')[0]: report['report'] for report in reports}
 
         files = os.listdir(self.__data_path_slide)
         files_1 = os.listdir(self.__data_path_patch)
         files_2 = os.listdir(self.__data_path_concept)
-        # slides = self.__reports.keys()
+        slides = list(self.__reports.keys())
 
-        # self.__slides = [file.split('.')[0] for file in files if file in files_1 and file in files_2 and file.split('.')[0] in slides]
-        # slides = list(self.__reports.keys())
-        slides = [slide for slide in self.__reports.keys() if slide != 'TCGA-A2-A1G0-01Z-00-DX1.9ECB0B8A-EF4E-45A9-82AC-EF36375DEF65']
-        # print(f'slides: {slides}')
-
-        # self.__slides = [file.split('.')[0] for file in self.__reports.keys()]
         print(f'dataset_type: {dataset_type} self.__slides: {len(slides)}')
-        # self.__slides = [file.split('.')[0] for file in files if
-        #                  file in files_1 and file in files_2 and file.split('.')[0] in slides]
-        self.__slides = [slide for slide in slides if f'{slide}.h5' in files and f'{slide}.h5' in files_1 and f'{slide[:12]}.h5' in files_2]
+        self.__slides = [file.split('.')[0] for file in files if
+                         file in files_1 and file in files_2 and file.split('.')[0] in slides]
+        print(
+            f'dataset_type: {dataset_type}, files: {len(files)}, files_1: {len(files_1)}, files_2: {len(files_2)} slides: {len(self.__slides)}')
 
-        # self.__slides = ['.'.join(file.split('.')[:-1]) for file in files if
-        #                  file in files_1 and f'{file[:12]}.h5' in files_2 and '.'.join(file.split('.')[:-1]) in slides]
-        print(f'dataset_type: {dataset_type}, files: {len(files)}, files_1: {len(files_1)}, files_2: {len(files_2)} slides: {len(self.__slides)}')
 
-        print(f'dataset_type: {dataset_type}, files: {files[:4]}, files_1: {files_1[:4]}, files_2: {files_2[:4]} slides: {self.__slides[:4]}')
+    def get_slides_brca(self, dataset_type, reports_json_path):
+        reports = read_json_file(reports_json_path)[dataset_type]
+        self.__reports = {report['id']: report['report'] for report in reports}
 
-        # print(f'self.__reports: {self.__reports}')
+        files = os.listdir(self.__data_path_slide)
+        files_1 = os.listdir(self.__data_path_patch)
+        files_2 = os.listdir(self.__data_path_concept)
+
+        slides = [slide for slide in self.__reports.keys() if
+                  slide != 'TCGA-A2-A1G0-01Z-00-DX1.9ECB0B8A-EF4E-45A9-82AC-EF36375DEF65']
+
+        print(f'dataset_type: {dataset_type} self.__slides: {len(slides)}')
+
+        self.__slides = ['.'.join(file.split('.')[:-1]) for file in files if
+                         file in files_1 and f'{file[:12]}.h5' in files_2 and '.'.join(file.split('.')[:-1]) in slides]
+        print(
+            f'dataset_type: {dataset_type}, files: {len(files)}, files_1: {len(files_1)}, files_2: {len(files_2)} slides: {len(self.__slides)}')
+
+        # print(
+        #     f'dataset_type: {dataset_type}, files: {files[:4]}, files_1: {files_1[:4]}, files_2: {files_2[:4]} slides: {self.__slides[:4]}')
 
     def __len__(self):
         return len(self.__slides)
