@@ -2,6 +2,7 @@ import json
 import gc
 import os
 import torch
+import torch.distributed as dist
 import pytorch_lightning as pl
 
 from modules.loss import LanguageModelCriterion
@@ -112,33 +113,27 @@ class ReportModel(pl.LightningModule):
             if batch_idx % 10 == 0:
                 self.__print_results(slide_ids, pred_texts, ground_truths)
 
-            rouge_score = self.test_rouge(pred_texts, target_texts)['rouge1_fmeasure'].to(self.device)
-            self.log('test_rouge', rouge_score, on_epoch=True, prog_bar=True, sync_dist=True)
 
-
-    def predict_step(self, batch):
+    def predict_step(self, batch, batch_idx):
         slide_ids, features = batch
         with torch.no_grad():
             output,concept_attn_maps = self.model(features, mode='sample')
-        pred_texts = self.tokenizer.batch_decode(output.detach().cpu().numpy())
+        pred_texts = self.tokenizer.decode_batch(output.detach().cpu().numpy())
         target_texts = [self.reports[slide_id] for slide_id in slide_ids]
 
-        self.__print_results(slide_ids[0], pred_texts[0], target_texts[0])
+        self.__print_results(slide_ids, pred_texts, target_texts)
 
         del output
         return slide_ids,pred_texts
 
     def on_validation_epoch_end(self):
-        # torch.cuda.empty_cache()
-        # self.__log_reg_metrics('val', 'reg', self.reg_evaluator.get_metrics, False)
         self.__log_metrics('val', compute_coco_scores, True)
         self.predictions.clear()
 
     def on_test_epoch_end(self):
-        # torch.cuda.empty_cache()
-        # self.__log_reg_metrics('test', 'reg', self.reg_evaluator.get_metrics, False)
         self.__log_metrics('test', compute_coco_scores, True)
-        self.__write_predictions()
+        if self.trainer.is_global_zero:
+            self.__write_predictions()
         self.predictions.clear()
 
     def configure_optimizers(self):
@@ -159,7 +154,7 @@ class ReportModel(pl.LightningModule):
 
             print('*' * 100)
             print(f'{RED} Predicted report for slide: {slide_ids[i]}: {pred_texts[i]} {RESET}')
-            print(f'Ground truth: {target_texts}')
+            print(f'Ground truth: {target_texts[i]}')
             print(f'{BLUE} Ground truth: {ground_truth} {RESET}')
 
             # json_string = json.dumps(extract_fields(pred_text), indent=4)
@@ -177,15 +172,16 @@ class ReportModel(pl.LightningModule):
     def __write_predictions(self):
         if not os.path.exists(self.__output_dir):
             os.makedirs(self.__output_dir, exist_ok=True)
-        write_json_file(self.predictions, f'{self.__output_dir}/predictions.json')
+        write_json_file(self.__gather_predictions(), f'{self.__output_dir}/predictions.json')
 
 
     def __log_metrics(self, stage, evaluate_fn, prog_bar):
+        predictions = self.__gather_predictions()
         pred_texts = []
         target_texts = []
-        for slide_id in self.predictions:
-            pred_texts.append(self.predictions[slide_id]['pred'])
-            target_texts.append(self.predictions[slide_id]['target'])
+        for slide_id in predictions:
+            pred_texts.append(predictions[slide_id]['pred'])
+            target_texts.append(predictions[slide_id]['target'])
 
         metrics = evaluate_fn(list(zip(pred_texts, target_texts)))
 
@@ -193,6 +189,18 @@ class ReportModel(pl.LightningModule):
             self.log(
                 f'{stage}_{metric_name}', metric_score, on_epoch=True, prog_bar=prog_bar, sync_dist=True
             )
+
+    def __gather_predictions(self):
+        if not dist.is_available() or not dist.is_initialized():
+            return dict(self.predictions)
+
+        gathered_predictions = [None] * dist.get_world_size()
+        dist.all_gather_object(gathered_predictions, dict(self.predictions))
+
+        merged_predictions = {}
+        for rank_predictions in gathered_predictions:
+            merged_predictions.update(rank_predictions)
+        return merged_predictions
 
     def __visualize_attn(self, weights):
         weights = weights.detach().cpu()

@@ -36,8 +36,13 @@ class Trainer:
             save_top_k=1,  # Number of best checkpoints to keep
             save_last=True  # Save the last checkpoint regardless of the monitored metric
         )
-        early_stop_callback = EarlyStopping(monitor=f"val_{self.args.monitor_mode}", min_delta=1e-5,
-                                            patience=self.args.early_stop, verbose=True, mode="max")
+        early_stop_callback = EarlyStopping(
+            monitor=monitor_metric,
+            min_delta=1e-5,
+            patience=self.args.early_stop,
+            verbose=True,
+            mode=self.args.monitor_mode,
+        )
 
         # suggested_lr = self.find_lr(model, datamodule)
         # print(f'setting lr: {suggested_lr}')
@@ -60,10 +65,9 @@ class Trainer:
             model, datamodule=datamodule
         )
 
-        train_metrics = self.trainer.logged_metrics
+        train_metrics = dict(self.trainer.callback_metrics)
         self.best_model_path = checkpoint_callback.best_model_path
-        # self.best = train_metrics['val_loss']
-        return train_metrics, self.trainer
+        return train_metrics, self.best_model_path
 
     def find_lr(self, model, datamodule):
         trainer = pl.Trainer(
@@ -94,11 +98,9 @@ class Trainer:
             fast_dev_run=fast_dev_run
         )
 
-        trainer.test(
-            model, datamodule=datamodule
-        )
-        test_metrics = trainer.logged_metrics
-        return test_metrics, trainer
+        trainer.test(model, datamodule=datamodule)
+        test_metrics = dict(trainer.callback_metrics)
+        return test_metrics
 
     def predict(self, model, datamodule, fast_dev_run=False):
 
@@ -116,4 +118,3 @@ class Trainer:
             model, datamodule=datamodule
         )
         return preds
-

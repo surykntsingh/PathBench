@@ -34,16 +34,15 @@ class EmbeddingDataModule(pl.LightningDataModule):
         return DataLoader(self.test_ds, batch_size=self.args.batch_size, collate_fn = self.collate_fn)
 
     @staticmethod
-    def collate_fn(batch, device='cuda'):
+    def collate_fn(batch):
         slide_ids, slide_embedding, patch_embeddings, gecko_deep_embedding, gecko_concept_embedding, report_ids, report_masks = zip(*batch)
-        report_ids = torch.LongTensor(report_ids).to(device)
+        report_ids = torch.LongTensor(report_ids)
         features = {
-            'slide': pad_sequence(slide_embedding,batch_first=True).to(device),
-            'patch': pad_sequence(patch_embeddings,batch_first=True).to(device),
+            'slide': pad_sequence(slide_embedding,batch_first=True),
+            'patch': pad_sequence(patch_embeddings,batch_first=True),
             'gecko': {
-                'deep': pad_sequence(gecko_deep_embedding,batch_first=True).to(device),
-                'concept': pad_sequence(gecko_concept_embedding,batch_first=True).to(device)
+                'deep': pad_sequence(gecko_deep_embedding,batch_first=True),
+                'concept': pad_sequence(gecko_concept_embedding,batch_first=True)
             }
         }
         return slide_ids, features, report_ids, torch.FloatTensor(report_masks)
-
