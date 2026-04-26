@@ -4,39 +4,24 @@ import torch
 import random
 import numpy as np
 
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
-
-from modules.datamodules.scout.dataloaders import EmbeddingDataLoader
-from modules.loss import compute_nll_loss, compute_hybrid_loss
-from modules.metrics.metrics import compute_scores
+from modules.datamodules.scout.datamodules import EmbeddingDataModule
+from modules.models.ReportModel import ReportModel
 from modules.models.scout.report_gen_model import ReportGenModel
-from modules.optimizers.optimizers import build_optimizer, build_lr_scheduler
 from modules.tokenizers.report_tokenizers import Tokenizer
+import pytorch_lightning as pl
 from modules.trainers.trainer import Trainer
 from utils.utils import get_params_for_key
+import pandas as pd
+from datetime import datetime
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
 
-
-def setup(devices):
-    # Let torchrun set these; fallback for safety/debug
+def init_seeds(seed=42, cuda_deterministic=False):
+    pl.seed_everything(seed)
+    torch.cuda.empty_cache()
     torch.set_float32_matmul_precision('medium')
-    os.environ['MASTER_ADDR'] = '127.0.0.1'  # Force loopback
-    os.environ['MASTER_PORT'] = '30001'  # Or any free port >1024master_port
-
-    if type(devices) == int:
-        devices =','.join([str(i) for i in range(devices)])
-    os.environ['CUDA_VISIBLE_DEVICES'] = devices
-
-    dist.init_process_group(backend='nccl')
-
-
-def init_seeds(seed=0, cuda_deterministic=True):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+    # torch.autograd.set_detect_anomaly(True)
     # Speed-reproducibility tradeoff https://pytorch.org/docs/stable/notes/randomness.html
     if cuda_deterministic:  # slower, more reproducible
         torch.backends.cudnn.deterministic = True
@@ -46,77 +31,62 @@ def init_seeds(seed=0, cuda_deterministic=True):
         torch.backends.cudnn.benchmark = True
 
 def init(config_file_path, load_model=False):
-    local_rank = int(os.environ['LOCAL_RANK'])
-    world_size = int(os.environ['WORLD_SIZE'])
-
+    init_seeds(0)
     args = get_params_for_key(config_file_path, "train")
-    args.lr *= world_size
-
-    setup(args.devices)
-    torch.cuda.set_device(local_rank)
-
-    # tokenizer
     tokenizer = Tokenizer(args.reports_json_path, args.dataset_type)
-    model = ReportGenModel(args, tokenizer).to(local_rank)
-    if load_model:
-        model = load_model_checkpoint(model, args)
+    model = ReportGenModel(args, tokenizer)
+    if load_model or args.resume:
+        print(f'Loading model from {args.model_load_path}')
+        report_model = ReportModel.load_from_checkpoint(args.model_load_path, args=args,model=model, tokenizer=tokenizer)
     else:
-        print(f"Rank {local_rank} has {sum(p.numel() for p in model.parameters())} parameters")
+        report_model = ReportModel(args, model, tokenizer)
 
-    model = DDP(model, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=args.unused_params)
+    datamodule = EmbeddingDataModule(args, tokenizer)
+    trainer = Trainer(args, tokenizer)
 
-    optimizer = build_optimizer(args, model)
-    lr_scheduler = build_lr_scheduler(args, optimizer)
-
-    criterion = compute_hybrid_loss if args.loss_type == 'hybrid' else compute_nll_loss
-    metrics = compute_scores
+    return trainer, datamodule, report_model, tokenizer, args
 
 
-
-    checkpoint_dir = args.save_dir
-    if not os.path.exists(checkpoint_dir):
-        if local_rank == 0:
-            os.makedirs(checkpoint_dir)
-
-    print('starting training')
-    return model, criterion, metrics, optimizer, args, lr_scheduler, tokenizer, local_rank
 
 
 @app.command()
 def train(config_file_path: str='config.yaml', notes: str=''):
-    model, criterion, metrics, optimizer, args, lr_scheduler, tokenizer,local_rank = init(config_file_path)
 
-    # dataloader
-    train_dataloader = EmbeddingDataLoader(args, tokenizer, split='train', shuffle=False)
-    val_dataloader = EmbeddingDataLoader(args, tokenizer, split='val', shuffle=False)
-    test_dataloader = EmbeddingDataLoader(args, tokenizer, split='test', shuffle=False)
+    trainer, datamodule, report_model,tokenizer, args = init(config_file_path)
 
-    trainer = Trainer(args, model, criterion, metrics, optimizer, lr_scheduler, train_dataloader, val_dataloader,
-                      test_dataloader)
-    trainer.train(local_rank)
-    trainer.test(local_rank)
+    train_metrics, best_model_path = trainer.train(report_model, datamodule, fast_dev_run=args.fast_dev_run)
+    print('model training finished')
+    print('Model testing begins')
+    print(f'loading best model from {best_model_path}')
+    model = ReportGenModel(args, tokenizer)
+    best_report_model = ReportModel.load_from_checkpoint(best_model_path, args=args, model=model, tokenizer=tokenizer)
+    test_metrics = trainer.test(best_report_model, datamodule, fast_dev_run=args.fast_dev_run)
+    print('model testing finished')
+    metrics = {**train_metrics, **test_metrics, 'best_model_path': best_model_path}
+    print(f'train_metrics: {train_metrics}, test_metrics: {test_metrics}')
+    metrics['exp_notes'] = notes
+
+
+    date = datetime.now()
+    args.ckpt_path += f'/{date.strftime("%Y%m%d")}/{date.strftime("%H%M%S")}'
+
+    results_path = f'{args.output_dir}/metrics'
+    os.makedirs(results_path, exist_ok=True)
+    write_metrics(results_path, metrics, date)
 
 
 @app.command()
-def test(config_file_path: str='config.yaml', notes: str=''):
-    model, criterion, metrics, optimizer, args, lr_scheduler, tokenizer, local_rank = init(config_file_path, load_model=True)
+def test(config_file_path: str='config.yaml'):
+    trainer, datamodule, report_model, tokenizer, args = init(config_file_path, load_model=True)
+    test_metrics = trainer.test(report_model, datamodule, fast_dev_run=args.fast_dev_run)
+    print(f'test_metrics: {test_metrics}')
 
-    test_dataloader = EmbeddingDataLoader(args, tokenizer, split='test', shuffle=False)
-    trainer = Trainer(args, model, criterion, metrics, optimizer, lr_scheduler,
-                      test_dataloader=test_dataloader)
-    trainer.test(local_rank)
+def write_metrics(results_path, metrics, date):
+    metrics['date'] = date.strftime("%Y-%m-%d %H:%M:%S")
+    metrics_df = pd.DataFrame([metrics])
 
-def load_model_checkpoint(model, args):
-    resume_path = args.model_load_path
-    state_dict = torch.load(resume_path)['state_dict']
-    model.load_state_dict(state_dict)
-    print("Loading checkpoint: {} ...".format(resume_path))
-    checkpoint = torch.load(resume_path)['state_dict']
-    model_dict = model.state_dict()
-    state_dict = {k: v for k, v in checkpoint.items()}
-    model_dict.update(state_dict)
-    model.load_state_dict(model_dict)
-    return  model
+
+    metrics_df.to_csv(f'{results_path}/results.csv',mode='a')
 
 if __name__ == "__main__":
     app()

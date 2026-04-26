@@ -42,13 +42,13 @@ train:
   data_path_patch: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/features_conch_v15
   data_path_concept: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca/gecko/features
   reports_json_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/tcga_brca_reports_splits.json
-#  ckpt_path: /lustre/nvwulf/home/sbsingh/exp1/brca
+  output_dir: /lustre/nvwulf/home/sbsingh/exp1/brca
   model_load_path: results/tcga_brca/1/model_best.pth
   # results_path: /lustre/nvwulf/home/sbsingh/tcga_brca/tcga_braca_new_tokenizer
   predict_embeddings_path_1: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/slide_features_titan
   predict_embeddings_path_2: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca_v2/features_conch_v15
   gecko_predict_emb_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/TCGA_processed/brca/gecko/features
-  devices: 8
+  devices: 4
   fast_dev_run: false
   num_folds: 3
   resume: false
@@ -62,3 +62,4 @@ train:
   monitor_metric: BLEU_4
   early_stop: 20
   unused_params: false
+

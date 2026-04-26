@@ -21,10 +21,10 @@ train:
   drop_prob_lm: 0.4
   concept_lambda: 0.01
   sample_method: beam_search
-  beam_size: 3
-  temperature: 0.2
-  sample_n: 1
-  group_size: 1
+  beam_size: 6
+  temperature: 0.7
+  sample_n: 2
+  group_size: 3
   output_logsoftmax: 1
   decoding_constraint: 1
   suppress_UNK: 1
@@ -32,28 +32,25 @@ train:
   lr: 7.0e-05
   lr_patience: 7
   d_slide: 768
-  d_patch: 768
+  d_patch: 1536
   d_concept_deep: 512
   d_concept: 66
   data_path_slide: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/train/20x_512px_0px_overlap/slide_features_titan
-  data_path_patch: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/train/20x_512px_0px_overlap/features_conch_v15
+  data_path_patch: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/train/20x_512px_0px_overlap/features_uni_v2
   data_path_concept: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/train/gecko_woc
   reports_json_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/reg_reports_splits.json
-#  ckpt_path: /lustre/nvwulf/home/sbsingh/reg/experiments
+  results_path: /lustre/nvwulf/home/sbsingh/reg/experiments
   model_load_path: /lustre/nvwulf/scratch/sbsingh/reg_catt/experiments/20260418/124730/model_epoch=16_val_loss=0.00826_val_coco_BLEU_4=0.83029.ckpt
-#  results_path: /lustre/nvwulf/home/sbsingh/reg_catt
-#  predict_embeddings_path_1: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/REG_test2_revised_processed/20x_512px_0px_overlap/slide_features_titan
-#  predict_embeddings_path_2: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/REG_test2_revised_processed/20x_512px_0px_overlap/features_conch_v15
-#  gecko_predict_emb_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/gecko_t_woc
-  devices: 4
+
+  devices: 8
   fast_dev_run: false
   num_folds: 3
   resume: false
   dataset_type: reg
   optim: AdamW
   amsgrad: true
-  save_dir: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/results/neurips/conch_v15/reg
-  record_dir: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/results/neurips/conch_v15/reg
+  save_dir: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/results/neurips/uni_v2/reg
+  record_dir: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/results/neurips/uni_v2/reg
   save_period: 1
   monitor_mode: max
   monitor_metric: BLEU_4
