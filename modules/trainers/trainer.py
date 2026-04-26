@@ -187,11 +187,19 @@ class Trainer(BaseTrainer):
             loss.backward()
             torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
             self.optimizer.step()
-        log = {'train_loss': train_loss / len(self.train_dataloader)}
-        print('train_loss: ', train_loss / len(self.train_dataloader))
-        self.lr_scheduler.step(train_loss)
+        avg_train_loss = train_loss / len(self.train_dataloader)
+        avg_train_loss = self._sync_scalar(avg_train_loss, rank)
+        log = {'train_loss': avg_train_loss}
+        print('train_loss: ', avg_train_loss)
+        self.lr_scheduler.step(avg_train_loss)
 
         return log
+
+    def _sync_scalar(self, value, rank):
+        value_tensor = torch.tensor(value, device=f'cuda:{rank}', dtype=torch.float32)
+        dist.all_reduce(value_tensor, op=dist.ReduceOp.SUM)
+        value_tensor /= dist.get_world_size()
+        return value_tensor.item()
 
     def _val_epoch(self, rank, log):
         dist.barrier()
