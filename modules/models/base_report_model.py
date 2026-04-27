@@ -59,13 +59,15 @@ class BaseReportModel(pl.LightningModule, ABC):
         return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
 
     def on_validation_epoch_end(self):
-        self.log_metrics('val', compute_coco_scores, True)
+        predictions = self.gather_predictions()
+        self.log_metrics('val', compute_coco_scores, True, predictions=predictions)
         self.predictions.clear()
 
     def on_test_epoch_end(self):
-        self.log_metrics('test', compute_coco_scores, True)
+        predictions = self.gather_predictions()
+        self.log_metrics('test', compute_coco_scores, True, predictions=predictions)
         if self.trainer.is_global_zero:
-            self.write_predictions()
+            self.write_predictions(predictions)
         self.predictions.clear()
 
     def save_predictions_from_ids(self, slide_ids, pred_ids, target_ids):
@@ -97,13 +99,14 @@ class BaseReportModel(pl.LightningModule, ABC):
             print(f'{blue} Ground truth: {ground_truth} {reset}')
             print('*' * 100)
 
-    def write_predictions(self):
+    def write_predictions(self, predictions):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
-        write_json_file(self.gather_predictions(), f'{self.output_dir}/predictions.json')
+        write_json_file(predictions, f'{self.output_dir}/predictions.json')
 
-    def log_metrics(self, stage, evaluate_fn, prog_bar):
-        predictions = self.gather_predictions()
+    def log_metrics(self, stage, evaluate_fn, prog_bar, predictions=None):
+        if predictions is None:
+            predictions = self.gather_predictions()
         metrics = None
 
         if not dist.is_available() or not dist.is_initialized() or self.trainer.is_global_zero:
