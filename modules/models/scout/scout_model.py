@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from modules.models.scout.modules.transformer import EncoderDecoder
 
 
-class ReportGenModel(nn.Module):
+class SCOUTModule(nn.Module):
 
     def __init__(self, args, tokenizer):
         super().__init__()

@@ -6,7 +6,7 @@ import numpy as np
 
 from modules.datamodules.scout.datamodules import EmbeddingDataModule
 from modules.models.ReportModel import ReportModel
-from modules.models.scout.report_gen_model import ReportGenModel
+from modules.models.scout.scout_model import SCOUTModule
 from modules.tokenizers.report_tokenizers import Tokenizer
 import pytorch_lightning as pl
 from modules.trainers.trainer import Trainer
@@ -34,7 +34,7 @@ def init(config_file_path, load_model=False):
     init_seeds(0)
     args = get_params_for_key(config_file_path, "train")
     tokenizer = Tokenizer(args.reports_json_path, args.dataset_type)
-    model = ReportGenModel(args, tokenizer)
+    model = SCOUTModule(args, tokenizer)
     if load_model or args.resume:
         print(f'Loading model from {args.model_load_path}')
         report_model = ReportModel.load_from_checkpoint(args.model_load_path, args=args,model=model, tokenizer=tokenizer)
@@ -58,7 +58,7 @@ def train(config_file_path: str='config.yaml', notes: str=''):
     print('model training finished')
     print('Model testing begins')
     print(f'loading best model from {best_model_path}')
-    model = ReportGenModel(args, tokenizer)
+    model = SCOUTModule(args, tokenizer)
     best_report_model = ReportModel.load_from_checkpoint(best_model_path, args=args, model=model, tokenizer=tokenizer)
     test_metrics = trainer.test(best_report_model, datamodule, fast_dev_run=args.fast_dev_run)
     print('model testing finished')

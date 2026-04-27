@@ -17,17 +17,16 @@ class ReportModel(pl.LightningModule):
     def __init__(self, args,model, tokenizer):
         super().__init__()
         self.model = model
-        # self.model.tie_weights()
-        # self.concept_lambda = args.concept_lambda
         for p in self.model.parameters():
             if not p.is_contiguous():
                 p.data = p.data.contiguous()
 
         self.tokenizer = tokenizer
         self.learning_rate = args.lr
-        self.__weight_decay = args.weight_decay
-        self.__lr_patience =args.lr_patience
-        self.__g_lambda = args.g_lambda
+        self.weight_decay = args.weight_decay
+        self.lr_patience =args.lr_patience
+        self.g_lambda = args.g_lambda
+        self.visualize_batch = args.visualize_batch
 
         self.predictions = {}
 
@@ -39,7 +38,7 @@ class ReportModel(pl.LightningModule):
             report['id']: report['report'] for split in reports for report in reports[split]
         }
 
-        self.__output_dir = args.output_dir
+        self.output_dir = args.output_dir
 
 
     def get_attn_regularization(self, weights, eps=1e-8):
@@ -54,19 +53,18 @@ class ReportModel(pl.LightningModule):
 
         attn_reg = self.get_attn_regularization(attns)
 
-        total_loss = caption_loss + self.__g_lambda * attn_reg
+        total_loss = caption_loss + self.g_lambda * attn_reg
         return total_loss
 
 
     def training_step(self, batch, batch_idx):
-        # gc.collect()
         _, features, report_ids, report_masks = batch
         # print(f'train features: {features}')
         output,attn = self.model(features, report_ids, mode='train')
 
         loss = self.loss_fn(output, report_ids, report_masks, attn)
         self.log('train_loss', loss, on_epoch=True, prog_bar=True, sync_dist=True)
-        del output
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -75,9 +73,6 @@ class ReportModel(pl.LightningModule):
             output_,attn = self.model(features, report_ids, mode='train')
             loss = self.loss_fn(output_, report_ids, report_masks, attn)
             self.log('val_loss', loss, on_epoch=True, prog_bar=True, sync_dist=True)
-            # del output_
-            # torch.cuda.empty_cache()
-
 
         with torch.no_grad():
             output, attn = self.model(features, report_ids, mode='sample')
@@ -86,9 +81,10 @@ class ReportModel(pl.LightningModule):
             pred_texts = self.tokenizer.decode_batch(output)
             ground_truths = self.tokenizer.decode_batch(report_ids[:, 1:].cpu().numpy())
             self.__save_predictions(slide_ids, pred_texts, ground_truths)
-            target_texts = [self.reports[slide_id] for slide_id in slide_ids]
-        if batch_idx % 10 == 0:
+
+        if self.visualize_batch and batch_idx % self.visualize_batch == 0:
             self.__print_results(slide_ids, pred_texts, ground_truths)
+            self.__visualize_attn(attn)
 
 
 
@@ -105,13 +101,14 @@ class ReportModel(pl.LightningModule):
         with torch.no_grad():
             output,attn = self.model(features, report_ids, mode='sample')
             output = output.detach().cpu().numpy()
-            self.__visualize_attn(attn)
+
             pred_texts = self.tokenizer.decode_batch(output)
-            target_texts = [self.reports[slide_id] for slide_id in slide_ids]
+            # target_texts = [self.reports[slide_id] for slide_id in slide_ids]
             ground_truths = self.tokenizer.decode_batch(report_ids[:, 1:].cpu().numpy())
             self.__save_predictions(slide_ids, pred_texts, ground_truths)
-            if batch_idx % 10 == 0:
+            if self.visualize_batch and batch_idx % self.visualize_batch == 0:
                 self.__print_results(slide_ids, pred_texts, ground_truths)
+                self.__visualize_attn(attn)
 
 
     def predict_step(self, batch, batch_idx):
@@ -127,19 +124,19 @@ class ReportModel(pl.LightningModule):
         return slide_ids,pred_texts
 
     def on_validation_epoch_end(self):
-        self.__log_metrics('val', compute_coco_scores, True)
+        self.log_metrics('val', compute_coco_scores, True)
         self.predictions.clear()
 
     def on_test_epoch_end(self):
-        self.__log_metrics('test', compute_coco_scores, True)
+        self.log_metrics('test', compute_coco_scores, True)
         if self.trainer.is_global_zero:
-            self.__write_predictions()
+            self.write_predictions()
         self.predictions.clear()
 
     def configure_optimizers(self):
         d_params = filter(lambda p: p.requires_grad, self.parameters())
-        optimizer = torch.optim.AdamW(d_params, lr=self.learning_rate, weight_decay=self.__weight_decay)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=self.__lr_patience)
+        optimizer = torch.optim.AdamW(d_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=self.lr_patience)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=80)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=1e-7)
         return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
@@ -169,13 +166,13 @@ class ReportModel(pl.LightningModule):
                 'target': ground_truths[i]
             }
 
-    def __write_predictions(self):
-        if not os.path.exists(self.__output_dir):
-            os.makedirs(self.__output_dir, exist_ok=True)
-        write_json_file(self.__gather_predictions(), f'{self.__output_dir}/predictions.json')
+    def write_predictions(self):
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir, exist_ok=True)
+        write_json_file(self.__gather_predictions(), f'{self.output_dir}/predictions.json')
 
 
-    def __log_metrics(self, stage, evaluate_fn, prog_bar):
+    def log_metrics(self, stage, evaluate_fn, prog_bar):
         predictions = self.__gather_predictions()
         pred_texts = []
         target_texts = []
