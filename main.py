@@ -5,8 +5,10 @@ import random
 import numpy as np
 
 from modules.datamodules.scout.datamodules import EmbeddingDataModule
-from modules.models.ReportModel import ReportModel
+from modules.models.scout_report_model import ScoutReportModel
 from modules.models.scout.scout_model import SCOUTModule
+from modules.models.wsi_caption.r2gen import R2GenModel
+from modules.models.wsi_caption_report_model import WSICaptionReportModel
 from modules.tokenizers.report_tokenizers import Tokenizer
 import pytorch_lightning as pl
 from modules.trainers.trainer import Trainer
@@ -34,17 +36,34 @@ def init(config_file_path, load_model=False):
     init_seeds(0)
     args = get_params_for_key(config_file_path, "train")
     tokenizer = Tokenizer(args.reports_json_path, args.dataset_type)
-    model = SCOUTModule(args, tokenizer)
+    report_model_cls, model = build_model(args, tokenizer)
     if load_model or args.resume:
         print(f'Loading model from {args.model_load_path}')
-        report_model = ReportModel.load_from_checkpoint(args.model_load_path, args=args,model=model, tokenizer=tokenizer)
+        report_model = report_model_cls.load_from_checkpoint(
+            args.model_load_path,
+            args=args,
+            model=model,
+            tokenizer=tokenizer,
+        )
     else:
-        report_model = ReportModel(args, model, tokenizer)
+        report_model = report_model_cls(args, model, tokenizer)
 
     datamodule = EmbeddingDataModule(args, tokenizer)
     trainer = Trainer(args, tokenizer)
 
     return trainer, datamodule, report_model, tokenizer, args
+
+
+def build_model(args, tokenizer):
+    model_type = getattr(args, 'model_type', 'scout').lower()
+
+    if model_type == 'scout':
+        return ScoutReportModel, SCOUTModule(args, tokenizer)
+
+    if model_type in {'wsi_caption', 'r2gen'}:
+        return WSICaptionReportModel, R2GenModel(args, tokenizer)
+
+    raise ValueError(f'Unsupported model_type: {model_type}')
 
 
 
@@ -58,8 +77,13 @@ def train(config_file_path: str='config.yaml', notes: str=''):
     print('model training finished')
     print('Model testing begins')
     print(f'loading best model from {best_model_path}')
-    model = SCOUTModule(args, tokenizer)
-    best_report_model = ReportModel.load_from_checkpoint(best_model_path, args=args, model=model, tokenizer=tokenizer)
+    report_model_cls, model = build_model(args, tokenizer)
+    best_report_model = report_model_cls.load_from_checkpoint(
+        best_model_path,
+        args=args,
+        model=model,
+        tokenizer=tokenizer,
+    )
     test_metrics = trainer.test(best_report_model, datamodule, fast_dev_run=args.fast_dev_run)
     print('model testing finished')
     metrics = {**train_metrics, **test_metrics, 'best_model_path': best_model_path}

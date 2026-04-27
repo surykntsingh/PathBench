@@ -1,0 +1,3 @@
+from modules.models.base_report_model import BaseReportModel
+from modules.models.scout_report_model import ScoutReportModel
+from modules.models.wsi_caption_report_model import WSICaptionReportModel

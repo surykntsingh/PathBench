@@ -55,6 +55,14 @@ class Tokenizer:
     def get_vocab_size(self):
         return len(self.__token2idx)
 
+    @property
+    def token2idx(self):
+        return self.__token2idx
+
+    @property
+    def idx2token(self):
+        return self.__idx2token
+
     def __split_text(self, text):
         # text = text.lower()
         # return re.findall(r"\w+|[^\w\s]", text, re.UNICODE)
@@ -103,7 +111,7 @@ class Tokenizer:
                                     .replace(' 4. ', ' ').replace(' 5. ', ' ')
                                     .replace(' 6. ', ' ').replace(' 7. ', ' ')
                                     .replace(' 8. ', ' ') .replace(' 9. ', ' ').strip().lower() + ' ').split('. ')
-        sent_cleaner = lambda t: re.sub('[#,?;*!^&_+():-\[\]{}]', '', t.replace('"', '').
+        sent_cleaner = lambda t: re.sub(r'[#,?;*!^&_+():\-\[\]{}]', '', t.replace('"', '').
                                     replace('\\', '').replace("'", '').strip().lower())
         tokens = [sent_cleaner(sent) for sent in report_cleaner(report) if sent_cleaner(sent) != []]
         report = ' . '.join(tokens)
