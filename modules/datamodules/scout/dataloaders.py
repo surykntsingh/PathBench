@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
-from modules.datamodules.scout.datasets import EmbeddingDataset
+from modules.datamodules.scout.base import ScoutDataset
 
 
 class EmbeddingDataLoader(DataLoader):
@@ -16,7 +16,7 @@ class EmbeddingDataLoader(DataLoader):
         self.tokenizer = tokenizer
         self.split = split
 
-        self.dataset = EmbeddingDataset(args, tokenizer, split)
+        self.dataset = ScoutDataset(args, tokenizer, split)
 
         if split == 'train':
             self.sampler = torch.utils.data.distributed.DistributedSampler(self.dataset)

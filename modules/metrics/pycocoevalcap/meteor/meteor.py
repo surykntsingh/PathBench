@@ -21,7 +21,7 @@ class Meteor:
     def __init__(self):
         d = dict(os.environ.copy())
         d['LANG'] = 'C'
-        self.meteor_cmd = ['java', '-jar', '-Xmx2G', METEOR_JAR, \
+        self.meteor_cmd = ['java', '-XX:+PerfDisableSharedMem', '-Xmx2G', '-jar', METEOR_JAR, \
                 '-', '-', '-stdio', '-l', 'en', '-norm']
         self.meteor_p = subprocess.Popen(self.meteor_cmd, \
                 cwd=os.path.dirname(os.path.abspath(__file__)), \
@@ -30,6 +30,7 @@ class Meteor:
                 stderr=subprocess.PIPE, env=d)
         # Used to guarantee thread safety
         self.lock = threading.Lock()
+        self._closed = False
 
     def compute_score(self, gts, res):
         assert (gts.keys() == res.keys())
@@ -47,8 +48,8 @@ class Meteor:
         self.meteor_p.stdin.write('{}\n'.format(eval_line).replace('.', ',').encode())
         self.meteor_p.stdin.flush()
         for i in range(0, len(imgIds)):
-            scores.append(float(self.meteor_p.stdout.readline().decode().strip()))
-        score = float(self.meteor_p.stdout.readline().strip())
+            scores.append(self._read_float())
+        score = self._read_float()
         self.lock.release()
 
         return score, scores
@@ -60,7 +61,7 @@ class Meteor:
         score_line = score_line.replace('\n', '').replace('\r', '')
         self.meteor_p.stdin.write('{}\n'.format(score_line).replace('.', ',').encode())
         self.meteor_p.stdin.flush()
-        raw = self.meteor_p.stdout.readline().decode().strip()
+        raw = self._read_numeric_line()
         numbers = [str(int(float(n))) for n in raw.split()]
         return ' '.join(numbers)
 
@@ -80,20 +81,66 @@ class Meteor:
         hypothesis_str = hypothesis_str.replace('|||','').replace('  ',' ')
         score_line = ' ||| '.join(('SCORE', ' ||| '.join(reference_list), hypothesis_str))
         self.meteor_p.stdin.write('{}\n'.format(score_line))
-        stats = self.meteor_p.stdout.readline().decode().strip()
+        stats = self._read_numeric_line()
         eval_line = 'EVAL ||| {}'.format(stats)
         # EVAL ||| stats 
         self.meteor_p.stdin.write('{}\n'.format(eval_line))
-        score = float(self.meteor_p.stdout.readline().decode().strip())
+        score = self._read_float()
         # bug fix: there are two values returned by the jar file, one average, and one all, so do it twice
         # thanks for Andrej for pointing this out
-        score = float(self.meteor_p.stdout.readline().decode().strip())
+        score = self._read_float()
         self.lock.release()
         return score
+
+    def _read_stdout_line(self):
+        while True:
+            raw = self.meteor_p.stdout.readline()
+            if not raw:
+                stderr_output = self.meteor_p.stderr.read().decode(errors='replace').strip()
+                raise RuntimeError(f'METEOR process exited unexpectedly. stderr: {stderr_output}')
+            line = raw.decode(errors='replace').strip()
+            if not line:
+                continue
+            if self._is_jvm_warning(line):
+                continue
+            return line
+
+    def _read_float(self):
+        line = self._read_stdout_line()
+        try:
+            return float(line)
+        except ValueError as exc:
+            raise ValueError(f'Failed to parse METEOR float from line: {line!r}') from exc
+
+    def _read_numeric_line(self):
+        while True:
+            line = self._read_stdout_line()
+            try:
+                for token in line.split():
+                    float(token)
+                return line
+            except ValueError:
+                continue
+
+    @staticmethod
+    def _is_jvm_warning(line):
+        return line.startswith('[') and 'warning' in line.lower()
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        self.lock.acquire()
+        try:
+            if self.meteor_p.stdin:
+                self.meteor_p.stdin.close()
+            self.meteor_p.kill()
+            self.meteor_p.wait()
+        finally:
+            self.lock.release()
  
     def __del__(self):
-        self.lock.acquire()
-        self.meteor_p.stdin.close()
-        self.meteor_p.kill()
-        self.meteor_p.wait()
-        self.lock.release()
+        try:
+            self.close()
+        except Exception:
+            pass
