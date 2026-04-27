@@ -4,7 +4,8 @@ import torch
 import random
 import numpy as np
 
-from modules.datamodules.scout.datamodules import EmbeddingDataModule
+from modules.datamodules.scout.base import ScoutDataModule
+from modules.datamodules.wsi_caption.base import WSICaptionDataModule
 from modules.models.scout_report_model import ScoutReportModel
 from modules.models.scout.scout_model import SCOUTModule
 from modules.models.wsi_caption.r2gen import R2GenModel
@@ -48,7 +49,7 @@ def init(config_file_path, load_model=False):
     else:
         report_model = report_model_cls(args, model, tokenizer)
 
-    datamodule = EmbeddingDataModule(args, tokenizer)
+    datamodule = build_datamodule(args, tokenizer)
     trainer = Trainer(args, tokenizer)
 
     return trainer, datamodule, report_model, tokenizer, args
@@ -62,6 +63,18 @@ def build_model(args, tokenizer):
 
     if model_type in {'wsi_caption', 'r2gen'}:
         return WSICaptionReportModel, R2GenModel(args, tokenizer)
+
+    raise ValueError(f'Unsupported model_type: {model_type}')
+
+
+def build_datamodule(args, tokenizer):
+    model_type = getattr(args, 'model_type', 'scout').lower()
+
+    if model_type == 'scout':
+        return ScoutDataModule(args, tokenizer)
+
+    if model_type in {'wsi_caption', 'r2gen'}:
+        return WSICaptionDataModule(args, tokenizer)
 
     raise ValueError(f'Unsupported model_type: {model_type}')
 
