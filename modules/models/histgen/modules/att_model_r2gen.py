@@ -62,16 +62,6 @@ class AttModel(CaptionModel):
                  nn.Dropout(self.drop_prob_lm)) +
                 ((nn.BatchNorm1d(self.input_encoding_size),) if self.use_bn == 2 else ())))
 
-        self.out1 = nn.Sequential(
-            nn.Linear(self.att_feat_size, 1024),
-            nn.Tanh()
-        )
-        self.out2 = nn.Sequential(
-            nn.Linear(self.rnn_size, self.rnn_size),
-            nn.Tanh()
-        )
-        self.ln = nn.LayerNorm(self.att_feat_size)
-
     def clip_att(self, att_feats, att_masks):
         # Clip the length of att_masks and att_feats to the maximum length
         if att_masks is not None:
@@ -80,18 +70,16 @@ class AttModel(CaptionModel):
             att_masks = att_masks[:, :max_len].contiguous()
         return att_feats, att_masks
 
-    def multimodal_feat(self, att_feats, meshes):# Concate multimodal features
-        return torch.cat((self.ln(att_feats),self.ln(meshes)),dim=1)
-    
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
         att_feats, att_masks = self.clip_att(att_feats, att_masks)
-     
+
+        # embed fc and att feats
         fc_feats = self.fc_embed(fc_feats)
-        
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
-       
+
+        # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
-       
+
         return fc_feats, att_feats, p_att_feats, att_masks
 
     def get_logprobs_state(self, it, fc_feats, att_feats, p_att_feats, att_masks, state, output_logsoftmax=1):
@@ -106,7 +94,7 @@ class AttModel(CaptionModel):
 
         return logprobs, state
 
-    def _sample_beam(self, fc_feats, att_feats, att_masks=None, meshes=None, opt={}):
+    def _sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}):
         beam_size = opt.get('beam_size', 10)
         group_size = opt.get('group_size', 1)
         sample_n = opt.get('sample_n', 10)
@@ -115,7 +103,7 @@ class AttModel(CaptionModel):
         batch_size = fc_feats.size(0)
 
         p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
-       
+
         assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
         seq = fc_feats.new_full((batch_size * sample_n, self.max_seq_length), self.pad_idx, dtype=torch.long)
         seqLogprobs = fc_feats.new_zeros(batch_size * sample_n, self.max_seq_length, self.vocab_size + 1)
@@ -147,7 +135,7 @@ class AttModel(CaptionModel):
         # return the samples and their log likelihoods
         return seq, seqLogprobs
 
-    def _sample(self, fc_feats, att_feats, meshes=None, att_masks=None):
+    def _sample(self, fc_feats, att_feats, att_masks=None):
         opt = self.args.__dict__
         sample_method = opt.get('sample_method', 'greedy')
         beam_size = opt.get('beam_size', 1)
@@ -158,14 +146,14 @@ class AttModel(CaptionModel):
         decoding_constraint = opt.get('decoding_constraint', 0)
         block_trigrams = opt.get('block_trigrams', 0)
         if beam_size > 1 and sample_method in ['greedy', 'beam_search']:
-            return self._sample_beam(fc_feats, att_feats, att_masks, meshes, opt)
+            return self._sample_beam(fc_feats, att_feats, att_masks, opt)
         if group_size > 1:
-            return self._diverse_sample(fc_feats, att_feats, att_masks, meshes, opt)
+            return self._diverse_sample(fc_feats, att_feats, att_masks, opt)
 
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size * sample_n)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, meshes)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
 
         if sample_n > 1:
             p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = utils.repeat_tensors(sample_n,

@@ -104,13 +104,20 @@ class BaseReportModel(pl.LightningModule, ABC):
 
     def log_metrics(self, stage, evaluate_fn, prog_bar):
         predictions = self.gather_predictions()
-        pred_texts = []
-        target_texts = []
-        for slide_id, prediction in predictions.items():
-            pred_texts.append(prediction['pred'])
-            target_texts.append(prediction['target'])
+        metrics = None
 
-        metrics = evaluate_fn(list(zip(pred_texts, target_texts)))
+        if not dist.is_available() or not dist.is_initialized() or self.trainer.is_global_zero:
+            pred_texts = []
+            target_texts = []
+            for slide_id, prediction in predictions.items():
+                pred_texts.append(prediction['pred'])
+                target_texts.append(prediction['target'])
+            metrics = evaluate_fn(list(zip(pred_texts, target_texts)))
+
+        if dist.is_available() and dist.is_initialized():
+            broadcast_payload = [metrics]
+            dist.broadcast_object_list(broadcast_payload, src=0)
+            metrics = broadcast_payload[0]
 
         for metric_name, metric_score in metrics.items():
             self.log(
@@ -118,7 +125,7 @@ class BaseReportModel(pl.LightningModule, ABC):
                 metric_score,
                 on_epoch=True,
                 prog_bar=prog_bar,
-                sync_dist=True,
+                sync_dist=False,
             )
 
     def gather_predictions(self):

@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
-from modules.encoder_decoder import EncoderDecoder
+from modules.models.bigen.modules.encoder_decoder import EncoderDecoder
 
 
 class R2GenModel(nn.Module):
@@ -19,7 +19,7 @@ class R2GenModel(nn.Module):
             print('use encoder_decoder: default')
             self.encoder_decoder = EncoderDecoder(args, tokenizer)
             
-        if args.dataset_name:
+        if getattr(args, 'dataset_name', None) or getattr(args, 'dataset_type', None):
             self.forward = self.forward_brca
         else:
             raise ValueError('no forward function')
@@ -76,4 +76,3 @@ class R2GenModel(nn.Module):
         else:
             raise ValueError
         return output
-

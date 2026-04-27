@@ -1,3 +1,4 @@
 from modules.models.base_report_model import BaseReportModel
+from modules.models.caption_report_model import CaptionReportModel
+from modules.models.bigen_report_model import BiGenReportModel
 from modules.models.scout_report_model import ScoutReportModel
-from modules.models.wsi_caption_report_model import WSICaptionReportModel

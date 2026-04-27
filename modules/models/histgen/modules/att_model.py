@@ -13,7 +13,7 @@ from .caption_model import CaptionModel
 
 def sort_pack_padded_sequence(input, lengths):
     sorted_lengths, indices = torch.sort(lengths, descending=True)
-    tmp = pack_padded_sequence(input[indices], sorted_lengths, batch_first=True)
+    tmp = pack_padded_sequence(input[indices], sorted_lengths.cpu(), batch_first=True)
     inv_ix = indices.clone()
     inv_ix[indices] = torch.arange(0, len(indices)).type_as(inv_ix)
     return tmp, inv_ix
@@ -62,16 +62,6 @@ class AttModel(CaptionModel):
                  nn.Dropout(self.drop_prob_lm)) +
                 ((nn.BatchNorm1d(self.input_encoding_size),) if self.use_bn == 2 else ())))
 
-        self.out1 = nn.Sequential(
-            nn.Linear(self.att_feat_size, 1024),
-            nn.Tanh()
-        )
-        self.out2 = nn.Sequential(
-            nn.Linear(self.rnn_size, self.rnn_size),
-            nn.Tanh()
-        )
-        self.ln = nn.LayerNorm(self.att_feat_size)
-
     def clip_att(self, att_feats, att_masks):
         # Clip the length of att_masks and att_feats to the maximum length
         if att_masks is not None:
@@ -80,18 +70,16 @@ class AttModel(CaptionModel):
             att_masks = att_masks[:, :max_len].contiguous()
         return att_feats, att_masks
 
-    def multimodal_feat(self, att_feats, meshes):# Concate multimodal features
-        return torch.cat((self.ln(att_feats),self.ln(meshes)),dim=1)
-    
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
         att_feats, att_masks = self.clip_att(att_feats, att_masks)
-     
+
+        # embed fc and att feats
         fc_feats = self.fc_embed(fc_feats)
-        
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
-       
+
+        # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
-       
+
         return fc_feats, att_feats, p_att_feats, att_masks
 
     def get_logprobs_state(self, it, fc_feats, att_feats, p_att_feats, att_masks, state, output_logsoftmax=1):
@@ -106,7 +94,7 @@ class AttModel(CaptionModel):
 
         return logprobs, state
 
-    def _sample_beam(self, fc_feats, att_feats, att_masks=None, meshes=None, opt={}):
+    def _sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}):
         beam_size = opt.get('beam_size', 10)
         group_size = opt.get('group_size', 1)
         sample_n = opt.get('sample_n', 10)
@@ -115,7 +103,7 @@ class AttModel(CaptionModel):
         batch_size = fc_feats.size(0)
 
         p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
-       
+
         assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
         seq = fc_feats.new_full((batch_size * sample_n, self.max_seq_length), self.pad_idx, dtype=torch.long)
         seqLogprobs = fc_feats.new_zeros(batch_size * sample_n, self.max_seq_length, self.vocab_size + 1)
@@ -147,8 +135,10 @@ class AttModel(CaptionModel):
         # return the samples and their log likelihoods
         return seq, seqLogprobs
 
-    def _sample(self, fc_feats, att_feats, meshes=None, att_masks=None):
+    def _sample(self, fc_feats, att_feats, att_masks=None, update_opts={}):
         opt = self.args.__dict__
+        opt.update(**update_opts)
+
         sample_method = opt.get('sample_method', 'greedy')
         beam_size = opt.get('beam_size', 1)
         temperature = opt.get('temperature', 1.0)
@@ -158,14 +148,14 @@ class AttModel(CaptionModel):
         decoding_constraint = opt.get('decoding_constraint', 0)
         block_trigrams = opt.get('block_trigrams', 0)
         if beam_size > 1 and sample_method in ['greedy', 'beam_search']:
-            return self._sample_beam(fc_feats, att_feats, att_masks, meshes, opt)
+            return self._sample_beam(fc_feats, att_feats, att_masks, opt)
         if group_size > 1:
-            return self._diverse_sample(fc_feats, att_feats, att_masks, meshes, opt)
+            return self._diverse_sample(fc_feats, att_feats, att_masks, opt)
 
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size * sample_n)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, meshes)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
 
         if sample_n > 1:
             p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = utils.repeat_tensors(sample_n,
@@ -329,3 +319,71 @@ class AttModel(CaptionModel):
         return torch.stack(seq_table, 1).reshape(batch_size * group_size, -1), torch.stack(seqLogprobs_table,
                                                                                            1).reshape(
             batch_size * group_size, -1)
+
+class Attention(nn.Module):
+    def __init__(self, args):
+        super(Attention, self).__init__()
+        self.args = args
+        self.rnn_size = self.args.d_ff
+        self.att_hid_size = self.args.d_model
+
+        self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.alpha_net = nn.Linear(self.att_hid_size, 1)
+
+    def forward(self, h, att_feats, p_att_feats, att_masks=None):
+        # The p_att_feats here is already projected
+        att_size = att_feats.numel() // att_feats.size(0) // att_feats.size(-1)
+        att = p_att_feats.view(-1, att_size, self.att_hid_size)
+        
+        att_h = self.h2att(h)                        # batch * att_hid_size
+        att_h = att_h.unsqueeze(1).expand_as(att)            # batch * att_size * att_hid_size
+        dot = att + att_h                                   # batch * att_size * att_hid_size
+        dot = torch.tanh(dot)                                # batch * att_size * att_hid_size
+        dot = dot.view(-1, self.att_hid_size)               # (batch * att_size) * att_hid_size
+        dot = self.alpha_net(dot)                           # (batch * att_size) * 1
+        dot = dot.view(-1, att_size)                        # batch * att_size
+        
+        weight = F.softmax(dot, dim=1)                             # batch * att_size
+        if att_masks is not None:
+            weight = weight * att_masks.view(-1, att_size).to(weight)
+            weight = weight / weight.sum(1, keepdim=True) # normalize to 1
+        att_feats_ = att_feats.view(-1, att_size, att_feats.size(-1)) # batch * att_size * att_feat_size
+        att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
+
+        return att_res
+
+class UpDownModel(AttModel):
+    def __init__(self, args, tokenizer):
+        super(UpDownModel, self).__init__(args, tokenizer)
+        self.num_layers = 2
+        self.core = UpDownCore(args)
+        
+class UpDownCore(nn.Module):
+    def __init__(self, args, use_maxout=False):
+        super(UpDownCore, self).__init__()
+        self.args = args
+        self.rnn_size = self.args.d_ff
+        self.drop_prob_lm = self.args.drop_prob_lm
+        self.input_encoding_size = self.args.d_model
+
+        self.att_lstm = nn.LSTMCell(self.input_encoding_size + self.rnn_size * 2, self.rnn_size) # we, fc, h^2_t-1
+        self.lang_lstm = nn.LSTMCell(self.rnn_size * 2, self.rnn_size) # h^1_t, \hat v
+        self.attention = Attention(self.args)
+
+    def forward(self, xt, fc_feats, att_feats, p_att_feats, state, att_masks=None):
+        prev_h = state[0][-1]
+        att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
+
+        h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
+
+        att = self.attention(h_att, att_feats, p_att_feats, att_masks)
+
+        lang_lstm_input = torch.cat([att, h_att], 1)
+        # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
+
+        h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
+
+        output = F.dropout(h_lang, self.drop_prob_lm, self.training)
+        state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
+
+        return output, state

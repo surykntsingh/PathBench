@@ -4,12 +4,6 @@ import torch
 import random
 import numpy as np
 
-from modules.datamodules.scout.base import ScoutDataModule
-from modules.datamodules.wsi_caption.base import WSICaptionDataModule
-from modules.models.scout_report_model import ScoutReportModel
-from modules.models.scout.scout_model import SCOUTModule
-from modules.models.wsi_caption.r2gen import R2GenModel
-from modules.models.wsi_caption_report_model import WSICaptionReportModel
 from modules.tokenizers.report_tokenizers import Tokenizer
 import pytorch_lightning as pl
 from modules.trainers.trainer import Trainer
@@ -59,10 +53,24 @@ def build_model(args, tokenizer):
     model_type = getattr(args, 'model_type', 'scout').lower()
 
     if model_type == 'scout':
+        from modules.models.scout.scout_model import SCOUTModule
+        from modules.models.scout_report_model import ScoutReportModel
         return ScoutReportModel, SCOUTModule(args, tokenizer)
 
     if model_type in {'wsi_caption', 'r2gen'}:
-        return WSICaptionReportModel, R2GenModel(args, tokenizer)
+        from modules.models.wsi_caption.r2gen import R2GenModel
+        from modules.models.caption_report_model import CaptionReportModel
+        return CaptionReportModel, R2GenModel(args, tokenizer)
+
+    if model_type == 'histgen':
+        from modules.models.histgen.histgen_model import HistGenModel
+        from modules.models.caption_report_model import CaptionReportModel
+        return CaptionReportModel, HistGenModel(args, tokenizer)
+
+    if model_type == 'bigen':
+        from modules.models.bigen.r2gen import R2GenModel as BiGenModel
+        from modules.models.bigen_report_model import BiGenReportModel
+        return BiGenReportModel, BiGenModel(args, tokenizer)
 
     raise ValueError(f'Unsupported model_type: {model_type}')
 
@@ -71,10 +79,20 @@ def build_datamodule(args, tokenizer):
     model_type = getattr(args, 'model_type', 'scout').lower()
 
     if model_type == 'scout':
+        from modules.datamodules.scout.base import ScoutDataModule
         return ScoutDataModule(args, tokenizer)
 
     if model_type in {'wsi_caption', 'r2gen'}:
+        from modules.datamodules.wsi_caption.base import WSICaptionDataModule
         return WSICaptionDataModule(args, tokenizer)
+
+    if model_type == 'histgen':
+        from modules.datamodules.histgen.base import HistGenDataModule
+        return HistGenDataModule(args, tokenizer)
+
+    if model_type == 'bigen':
+        from modules.datamodules.bigen.base import BiGenDataModule
+        return BiGenDataModule(args, tokenizer)
 
     raise ValueError(f'Unsupported model_type: {model_type}')
 
@@ -105,7 +123,7 @@ def train(config_file_path: str='config.yaml', notes: str=''):
 
 
     date = datetime.now()
-    args.ckpt_path += f'/{date.strftime("%Y%m%d")}/{date.strftime("%H%M%S")}'
+    # args.ckpt_path += f'/{date.strftime("%Y%m%d")}/{date.strftime("%H%M%S")}'
 
     results_path = f'{args.output_dir}/metrics'
     os.makedirs(results_path, exist_ok=True)

@@ -42,7 +42,7 @@ class CaptionModel(nn.Module):
                 if local_time == 0:
                     logprobs = logprobs - change * diversity_lambda
                 else:
-                    logprobs = logprobs - utils.repeat_tensors(bdash, change) * diversity_lambda
+                    logprobs = logprobs - self.repeat_tensor(bdash, change) * diversity_lambda
 
             return logprobs, unaug_logprobs
 
@@ -149,9 +149,8 @@ class CaptionModel(nn.Module):
                         logprobs.scatter_(1, beam_seq_table[divm][:, :, t - divm - 1].reshape(-1, 1).to(device),
                                           float('-inf'))
                     # suppress UNK tokens in the decoding
-                    if suppress_UNK:
-                        idx_unk = self.tokenizer.token2idx['<unk>']
-                        logprobs[:, idx_unk] = logprobs[:, idx_unk] - 1000
+                    if suppress_UNK and hasattr(self, 'vocab') and self.vocab[str(logprobs.size(1) - 1)] == 'UNK':
+                        logprobs[:, logprobs.size(1) - 1] = logprobs[:, logprobs.size(1) - 1] - 1000
                         # diversity is added here
                     # the function directly modifies the logprobs values and hence, we need to return
                     # the unaugmented ones for sorting the candidates in the end. # for historical
