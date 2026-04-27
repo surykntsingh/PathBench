@@ -6,6 +6,7 @@ import numpy as np
 
 from modules.tokenizers.report_tokenizers import Tokenizer
 import pytorch_lightning as pl
+import torch.distributed as dist
 from modules.trainers.trainer import Trainer
 from utils.utils import get_params_for_key
 import pandas as pd
@@ -47,6 +48,10 @@ def init(config_file_path, load_model=False):
     trainer = Trainer(args, tokenizer)
 
     return trainer, datamodule, report_model, tokenizer, args
+
+
+def is_global_zero():
+    return not dist.is_available() or not dist.is_initialized() or dist.get_rank() == 0
 
 
 def build_model(args, tokenizer):
@@ -116,25 +121,29 @@ def train(config_file_path: str='config.yaml', notes: str=''):
         tokenizer=tokenizer,
     )
     test_metrics = trainer.test(best_report_model, datamodule, fast_dev_run=args.fast_dev_run)
-    print('model testing finished')
-    metrics = {**train_metrics, **test_metrics, 'best_model_path': best_model_path}
-    print(f'train_metrics: {train_metrics}, test_metrics: {test_metrics}')
-    metrics['exp_notes'] = notes
+    if is_global_zero():
+        print('model testing finished')
+        metrics = {**train_metrics, **test_metrics, 'best_model_path': best_model_path}
+        print(f'train_metrics: {train_metrics}, test_metrics: {test_metrics}')
+        metrics['exp_notes'] = notes
 
+        date = datetime.now()
+        results_path = f'{args.output_dir}/metrics'
+        os.makedirs(results_path, exist_ok=True)
+        write_metrics(results_path, metrics, date)
 
-    date = datetime.now()
-    # args.ckpt_path += f'/{date.strftime("%Y%m%d")}/{date.strftime("%H%M%S")}'
-
-    results_path = f'{args.output_dir}/metrics'
-    os.makedirs(results_path, exist_ok=True)
-    write_metrics(results_path, metrics, date)
+    if dist.is_available() and dist.is_initialized():
+        dist.barrier()
 
 
 @app.command()
 def test(config_file_path: str='config.yaml'):
     trainer, datamodule, report_model, tokenizer, args = init(config_file_path, load_model=True)
     test_metrics = trainer.test(report_model, datamodule, fast_dev_run=args.fast_dev_run)
-    print(f'test_metrics: {test_metrics}')
+    if is_global_zero():
+        print(f'test_metrics: {test_metrics}')
+    if dist.is_available() and dist.is_initialized():
+        dist.barrier()
 
 def write_metrics(results_path, metrics, date):
     metrics['date'] = date.strftime("%Y-%m-%d %H:%M:%S")

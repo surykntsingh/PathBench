@@ -68,6 +68,8 @@ class BaseReportModel(pl.LightningModule, ABC):
         self.log_metrics('test', compute_coco_scores, True, predictions=predictions)
         if self.trainer.is_global_zero:
             self.write_predictions(predictions)
+        if dist.is_available() and dist.is_initialized():
+            dist.barrier()
         self.predictions.clear()
 
     def save_predictions_from_ids(self, slide_ids, pred_ids, target_ids):
