@@ -34,8 +34,8 @@ class EmbeddingDataset(Dataset):
         print(
             f'dataset_type: {dataset_type}, files: {len(files)}, files_1: {len(files_1)}, files_2: {len(files_2)} slides: {len(self.__slides)}')
 
-        print(
-            f'dataset_type: {dataset_type}, files: {files[:4]}, files_1: {files_1[:4]}, files_2: {files_2[:4]} slides: {self.__slides[:4]}')
+        # print(
+        #     f'dataset_type: {dataset_type}, files: {files[:4]}, files_1: {files_1[:4]}, files_2: {files_2[:4]} slides: {self.__slides[:4]}')
 
 
     def get_slides_brca(self, dataset_type, reports_json_path):

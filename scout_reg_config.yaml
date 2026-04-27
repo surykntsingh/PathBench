@@ -41,7 +41,7 @@ train:
   reports_json_path: /lustre/nvwulf/projects/PrasannaGroup-nvwulf/surya/datasets/REG_2025/reg_reports_splits.json
   results_path: /lustre/nvwulf/home/sbsingh/reg/experiments
   model_load_path: /lustre/nvwulf/scratch/sbsingh/reg_catt/experiments/20260418/124730/model_epoch=16_val_loss=0.00826_val_coco_BLEU_4=0.83029.ckpt
-
+  model_type: scout
   devices: 8
   fast_dev_run: false
   num_folds: 3
