@@ -21,6 +21,30 @@ class ScoutDataset(BaseReportDataset):
         files_concept = os.listdir(self.data_path_concept)
         slides = [
             slide_id for slide_id in self.reports.keys()
+        ]
+
+        print(f'dataset_type: {self.split} self.__slides: {len(slides)}')
+
+        matched_slides = [
+            '.'.join(file.split('.')[:-1])
+            for file in files_slide
+            if file in files_patch
+            and file in files_concept
+            and '.'.join(file.split('.')[:-1]) in slides
+        ]
+
+        print(
+            f'dataset_type: {self.split}, files: {len(files_slide)}, '
+            f'files_1: {len(files_patch)}, files_2: {len(files_concept)} slides: {len(matched_slides)}'
+        )
+        return matched_slides
+
+    def build_slides_tcga(self):
+        files_slide = os.listdir(self.data_path_slide)
+        files_patch = os.listdir(self.data_path_patch)
+        files_concept = os.listdir(self.data_path_concept)
+        slides = [
+            slide_id for slide_id in self.reports.keys()
             if slide_id != 'TCGA-A2-A1G0-01Z-00-DX1.9ECB0B8A-EF4E-45A9-82AC-EF36375DEF65'
         ]
 
@@ -50,7 +74,7 @@ class ScoutDataset(BaseReportDataset):
         with h5py.File(f'{self.data_path_patch}/{slide_id}.h5', "r") as h5_file:
             patch_embedding = torch.tensor(h5_file["features"][:])
 
-        with h5py.File(f'{self.data_path_concept}/{slide_id[:12]}.h5', "r") as h5_file:
+        with h5py.File(f'{self.data_path_concept}/{slide_id}.h5', "r") as h5_file:
             gecko_deep_embedding = torch.tensor(h5_file["bag_feats_deep"][:])
             gecko_concept_embedding = torch.tensor(h5_file["bag_feats"][:])
 
