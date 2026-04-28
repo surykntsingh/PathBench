@@ -12,7 +12,7 @@ class Tokenizer:
         self.__threshold = threshold
         self.__pattern = re.compile(r'\s+|[\w]+|[^\w\s]', re.UNICODE)
         self.clean_report = lambda x: x
-        if dataset_type == 'tcga_brca' or dataset_type == 'histai':
+        if dataset_type == 'tcga' or dataset_type == 'histai':
             self.clean_report = self.clean_report_brca_v2
         self.__token2idx, self.__idx2token = self.create_vocabulary(reports_json_path)
 
@@ -135,28 +135,28 @@ class Tokenizer:
         # -------------------------------------------------------
         # 2. Remove measurement expressions
         # -------------------------------------------------------
-        text = re.sub(
-            r'\b(?:\d+(?:\.\d+)?\s*(?:x|×|by)\s*){2,}\d+(?:\.\d+)?\s*(?:cm|mm|µm|um)\b',
-            'x units',
-            text,
-            flags=re.IGNORECASE
-        )
-
-        # Remove 2D only (A x B cm)
-        text = re.sub(
-            r'\b\d+(?:\.\d+)?\s*(?:x|×|by)\s*\d+(?:\.\d+)?\s*(?:cm|mm|µm|um)\b',
-            'x units',
-            text,
-            flags=re.IGNORECASE
-        )
-
-        # Remove single measurements (A cm, A mm)
-        text = re.sub(
-            r'\b\d+(?:\.\d+)?\s*(?:cm|mm|µm|um)\b',
-            'x units',
-            text,
-            flags=re.IGNORECASE
-        )
+        # text = re.sub(
+        #     r'\b(?:\d+(?:\.\d+)?\s*(?:x|×|by)\s*){2,}\d+(?:\.\d+)?\s*(?:cm|mm|µm|um)\b',
+        #     'x units',
+        #     text,
+        #     flags=re.IGNORECASE
+        # )
+        #
+        # # Remove 2D only (A x B cm)
+        # text = re.sub(
+        #     r'\b\d+(?:\.\d+)?\s*(?:x|×|by)\s*\d+(?:\.\d+)?\s*(?:cm|mm|µm|um)\b',
+        #     'x units',
+        #     text,
+        #     flags=re.IGNORECASE
+        # )
+        #
+        # # Remove single measurements (A cm, A mm)
+        # text = re.sub(
+        #     r'\b\d+(?:\.\d+)?\s*(?:cm|mm|µm|um)\b',
+        #     'x units',
+        #     text,
+        #     flags=re.IGNORECASE
+        # )
 
         # Normalize spaces again
         text = re.sub(r"\s+", " ", text).strip().lower()+' '
@@ -170,7 +170,7 @@ class Tokenizer:
         # 4. Clean each sentence: remove punctuation, quotes, noise
         # -------------------------------------------------------
         def clean_sentence(s):
-            s = re.sub(r'[#,?;*!^&_+():\-\[\]{}]', '', s)
+            s = re.sub(r'[#,?;*!^&_:\[\]{}]', '', s)
             s = s.replace('"', '').replace("'", "").replace("\\", "")
             return s.strip().lower()
 
