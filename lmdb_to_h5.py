@@ -47,6 +47,31 @@ def read_payload(value):
     return np.asarray(payload)
 
 
+def normalize_key(key):
+    if isinstance(key, bytes):
+        return key
+    return str(key).encode("utf-8")
+
+
+def key_sort_value(key):
+    try:
+        return 0, int(key.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return 1, key
+
+
+def get_data_keys(txn):
+    keys_blob = txn.get(b"__keys__")
+    if keys_blob is not None:
+        keys = pickle.loads(keys_blob)
+        keys = [normalize_key(key) for key in keys]
+    else:
+        keys = [key for key, _ in txn.cursor() if key not in METADATA_KEYS]
+        keys.sort(key=key_sort_value)
+
+    return [key for key in keys if key not in METADATA_KEYS]
+
+
 def read_lmdb(lmdb_path):
     env = lmdb.open(
         str(lmdb_path),
@@ -59,21 +84,36 @@ def read_lmdb(lmdb_path):
 
     try:
         with env.begin(write=False) as txn:
-            keys_blob = txn.get(b"__keys__")
-            if keys_blob is not None:
-                keys = pickle.loads(keys_blob)
-                keys = [key if isinstance(key, bytes) else str(key).encode("utf-8") for key in keys]
-            else:
-                keys = [key for key, _ in txn.cursor() if key not in METADATA_KEYS]
+            keys = get_data_keys(txn)
+            if not keys:
+                raise ValueError("expected at least one data record, found 0")
 
-            if len(keys) != 1:
-                raise ValueError(f"expected exactly one data record, found {len(keys)}")
+            records = []
+            expected_shape = None
+            expected_dtype = None
+            for key in keys:
+                value = txn.get(key)
+                if value is None:
+                    raise ValueError(f"missing value for key {key!r}")
 
-            value = txn.get(keys[0])
-            if value is None:
-                raise ValueError(f"missing value for key {keys[0]!r}")
+                record = read_payload(value)
+                if expected_shape is None:
+                    expected_shape = record.shape
+                    expected_dtype = record.dtype
+                elif record.shape != expected_shape:
+                    raise ValueError(
+                        f"inconsistent record shape for key {key!r}: "
+                        f"expected {expected_shape}, found {record.shape}"
+                    )
 
-            return read_payload(value)
+                if record.dtype != expected_dtype:
+                    record = record.astype(expected_dtype, copy=False)
+                records.append(record)
+
+            if len(records) == 1:
+                return records[0]
+
+            return np.stack(records, axis=0)
     finally:
         env.close()
 
