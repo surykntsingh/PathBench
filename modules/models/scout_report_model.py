@@ -34,16 +34,16 @@ class ScoutReportModel(BaseReportModel):
         loss = self.loss_fn(output, report_ids, report_masks, attn)
         self.log('val_loss', loss, on_epoch=True, prog_bar=True, sync_dist=True)
 
-        # pred_ids, attn = self.model(features, report_ids, mode='sample')
-        # pred_texts, ground_truths = self.save_predictions_from_ids(
-        #     slide_ids,
-        #     pred_ids.detach().cpu().numpy(),
-        #     report_ids[:, 1:].detach().cpu().numpy(),
-        # )
-        #
-        # if self.should_visualize(batch_idx):
-        #     self.print_results(slide_ids, pred_texts, ground_truths)
-        #     self.visualize_attn(attn)
+        pred_ids, attn = self.model(features, report_ids, mode='sample')
+        pred_texts, ground_truths = self.save_predictions_from_ids(
+            slide_ids,
+            pred_ids.detach().cpu().numpy(),
+            report_ids[:, 1:].detach().cpu().numpy(),
+        )
+
+        if self.should_visualize(batch_idx):
+            self.print_results(slide_ids, pred_texts, ground_truths)
+            self.visualize_attn(attn)
 
     def test_step(self, batch, batch_idx):
         slide_ids, features, report_ids, report_masks = batch

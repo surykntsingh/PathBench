@@ -58,10 +58,10 @@ class BaseReportModel(pl.LightningModule, ABC):
         )
         return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
 
-    # def on_validation_epoch_end(self):
-    #     predictions = self.gather_predictions()
-    #     self.log_metrics('val', compute_coco_scores, True, predictions=predictions)
-    #     self.predictions.clear()
+    def on_validation_epoch_end(self):
+        predictions = self.gather_predictions()
+        self.log_metrics('val', compute_coco_scores, True, predictions=predictions)
+        self.predictions.clear()
 
     def on_test_epoch_end(self):
         predictions = self.gather_predictions()
