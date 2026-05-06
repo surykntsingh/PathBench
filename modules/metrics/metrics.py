@@ -88,3 +88,32 @@ def compute_scores(gts, res):
         else:
             eval_res[method] = score
     return eval_res
+
+
+def compute_scores_per_sample(gts, res):
+    """
+    Compute COCO-style language metrics for each sample.
+
+    :param gts: Dictionary with sample ids and gold captions.
+    :param res: Dictionary with sample ids and generated captions.
+    :return: Dictionary keyed by sample id with per-sample metrics.
+    """
+    sample_ids = list(gts.keys())
+    per_sample = {sample_id: {} for sample_id in sample_ids}
+
+    scorers = _get_coco_scorers()
+    for scorer, method in scorers:
+        try:
+            score, scores = scorer.compute_score(gts, res)
+        except TypeError:
+            score, scores = scorer.compute_score(gts, res)
+
+        if type(method) == list:
+            for metric_name, metric_scores in zip(method, scores):
+                for sample_id, metric_score in zip(sample_ids, metric_scores):
+                    per_sample[sample_id][metric_name] = float(metric_score)
+        else:
+            for sample_id, metric_score in zip(sample_ids, scores):
+                per_sample[sample_id][method] = float(metric_score)
+
+    return per_sample
