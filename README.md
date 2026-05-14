@@ -4,6 +4,8 @@ PathBench is a PyTorch Lightning codebase for pathology report generation from
 whole-slide image (WSI) embeddings. It trains and evaluates captioning/report
 generation models against pathology report text using COCO-style language
 metrics such as BLEU, METEOR, and ROUGE-L.
+It also includes CRQS evaluation pipelines for clinical fact-based scoring of
+generated pathology reports.
 
 The repository currently includes implementations and configuration examples
 for:
@@ -20,7 +22,7 @@ for:
 ```text
 .
 ├── main.py                         # Typer CLI for train/test runs
-├── lmdb_to_h5.py                   # Converts LMDB feature stores to HDF5
+├── crqs/                           # CRQS scoring pipelines and dataset configs
 ├── *_config.yaml                   # Example training configs
 ├── modules/
 │   ├── datamodules/                # Dataset and dataloader definitions
@@ -40,7 +42,7 @@ The code uses GPU acceleration through PyTorch Lightning.
 Core Python packages:
 
 ```bash
-python3 -m pip install torch pytorch-lightning typer pyyaml h5py lmdb numpy pandas scikit-learn tqdm einops
+python3 -m pip install torch pytorch-lightning typer pyyaml h5py numpy pandas scikit-learn tqdm einops
 ```
 
 Notes:
@@ -150,18 +152,49 @@ Test predictions are written to:
 <output_dir>/predictions.json
 ```
 
-## Convert LMDB Features to HDF5
+## Calculate CRQS Scores
 
-If your feature directory contains LMDB feature stores, convert them to the HDF5
-format expected by the data loaders:
+CRQS scores can be calculated for generated pathology reports with the unified
+entrypoint in `crqs/run_crqs.py`. Run it from the repository root so `crqs` is
+available as a package.
 
 ```bash
-python3 lmdb_to_h5.py /path/to/feature_directory
+python3 -m crqs.run_crqs \
+  --dataset reg \
+  --config crqs/crqs_reg/src/config.py \
+  --input /path/to/predictions.json \
+  --output-dir /path/to/crqs_outputs
 ```
 
-The script converts each LMDB in the directory into `<name>.h5` with a
-`features` dataset, then removes the original LMDB file or directory after a
-successful conversion.
+The input JSON should be keyed by case id. Each case needs a ground-truth report
+in `target` and a generated report in `pred`:
+
+```json
+{
+  "CASE_ID": {
+    "target": "Ground-truth pathology report text.",
+    "pred": "Generated pathology report text."
+  }
+}
+```
+
+Supported datasets are `reg`, `histai`, and `tcga`:
+
+```bash
+python3 -m crqs.run_crqs --dataset reg --config crqs/crqs_reg/src/config.py --input predictions_reg.json --output-dir outputs/crqs_reg
+python3 -m crqs.run_crqs --dataset histai --config crqs/crqs_histai/src/config.py --input predictions_histai.json --output-dir outputs/crqs_histai
+python3 -m crqs.run_crqs --dataset tcga --config crqs/crqs_tcga/src/config.py --input predictions_tcga.json --output-dir outputs/crqs_tcga
+```
+
+Useful options:
+
+- `--vocab`: reuse a vocabulary JSON for HistAI or TCGA.
+- `--rebuild-vocab`: force vocabulary rebuilding.
+- `--min-count`: minimum term frequency for vocabulary learning.
+- `--limit`: process only the first N TCGA cases for debugging.
+
+CRQS outputs include per-case metrics, extracted clinical facts, summary JSON,
+and summary CSV files under the selected `--output-dir`.
 
 ## Quick Smoke Test
 
@@ -184,6 +217,7 @@ PathBench produces:
 - Lightning checkpoints in `<output_dir>/ckpt/`.
 - Test predictions in `<output_dir>/predictions.json`.
 - A metrics CSV in `<output_dir>/metrics/results.csv`.
+- CRQS per-case and summary files in the CRQS `--output-dir`.
 - Console logs with train, validation, and test metrics.
 
 ## License

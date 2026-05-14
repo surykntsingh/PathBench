@@ -1,7 +1,7 @@
 import typer
 import os
 import torch
-import random
+import json
 import numpy as np
 
 from modules.tokenizers.report_tokenizers import Tokenizer
@@ -11,6 +11,8 @@ from modules.trainers.trainer import Trainer
 from utils.utils import get_params_for_key
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
@@ -145,12 +147,56 @@ def test(config_file_path: str='config.yaml'):
     if dist.is_available() and dist.is_initialized():
         dist.barrier()
 
+
+
+@app.command("compute-metrics")
+def compute_metrics(
+    input_json_path: str = typer.Argument(..., help="JSON file with id, prediction, and ground-truth text."),
+    output_json_path: Optional[str] = typer.Option(
+        None,
+        "--output-json-path",
+        "-o",
+        help="Path for the enriched per-sample metrics JSON.",
+    ),
+):
+    from modules.metrics.metrics import compute_scores, compute_scores_per_sample
+
+    input_path = Path(input_json_path)
+    with input_path.open("r") as f:
+        data = json.load(f)
+
+    gts = {sample_id: [sample["target"]] for sample_id, sample in data.items()}
+    preds = {sample_id: [sample["pred"]] for sample_id, sample in data.items()}
+    per_sample_metrics = compute_scores_per_sample(gts, preds)
+    overall_metrics = compute_scores(gts, preds)
+
+    output_records = []
+    for sample_id, sample in data.items():
+        record = {
+            "id": sample_id,
+            "predicted": sample["pred"],
+            "ground_truth": sample["target"],
+            "metrics": per_sample_metrics[sample_id],
+        }
+        output_records.append(record)
+        print(json.dumps(record, indent=2))
+
+    output_path = Path(output_json_path) if output_json_path else input_path.with_name(f"{input_path.stem}_metrics.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w") as f:
+        json.dump(output_records, f, indent=2)
+
+    print("Overall metrics:")
+    print(json.dumps(overall_metrics, indent=2))
+    print(f"Saved per-sample metrics JSON to {output_path}")
+
+
 def write_metrics(results_path, metrics, date):
     metrics['date'] = date.strftime("%Y-%m-%d %H:%M:%S")
     metrics_df = pd.DataFrame([metrics])
-
-
     metrics_df.to_csv(f'{results_path}/results.csv',mode='a')
+
+
 
 if __name__ == "__main__":
     app()
