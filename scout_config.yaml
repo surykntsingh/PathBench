@@ -1,0 +1,59 @@
+train:
+  max_fea_length: 2000
+  max_seq_length: 600
+  threshold: 1
+  num_workers: 2
+  batch_size: 1
+  max_epochs: 200
+  d_model: 768
+  d_ff: 768
+  d_vf: 768
+  num_heads: 4
+  num_layers: 3
+  dropout: 0.2
+  dropout_mlp: 0.2
+  weight_decay: 1.0e-5
+  logit_layers: 3
+  bos_idx: 0
+  eos_idx: 0
+  pad_idx: 0
+  use_bn: 0
+  drop_prob_lm: 0.4
+  concept_lambda: 0.01
+  sample_method: beam_search
+  beam_size: 6
+  temperature: 0.7
+  sample_n: 2
+  group_size: 3
+  output_logsoftmax: 1
+  decoding_constraint: 1
+  suppress_UNK: 1
+  block_trigrams: 1
+  lr: 7.0e-05
+  lr_patience: 7
+  d_slide: 768
+  d_patch: 1536
+  d_concept_deep: 512
+  d_concept: 66
+  data_path_slide: <Slide data path>
+  data_path_patch: <Patch data path>
+  data_path_concept: <Concept data path>
+  reports_json_path: reports/<reports json path>
+  model_load_path:
+  model_type: scout
+  devices: 8
+  fast_dev_run: false
+  num_folds: 3
+  resume: false
+  dataset_type: reg
+  optim: AdamW
+  amsgrad: true
+  save_period: 1
+  monitor_mode: max
+  monitor_metric: BLEU_4
+  early_stop: 20
+  unused_params: false
+  g_lambda: 0.07
+  loss_type: hybrid
+  epochs_val: 1
+  start_val: 1
