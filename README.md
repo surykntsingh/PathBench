@@ -115,13 +115,13 @@ At minimum, update these fields for your environment:
 Run training with a config file:
 
 ```bash
-python3 main.py train --config-file-path wsi_caption_reg_config.yaml
+python3 main.py train --config-file-path wsi_caption_config.yaml
 ```
 
 Optionally attach a note to the metrics row:
 
 ```bash
-python3 main.py train --config-file-path scout_reg_config.yaml --notes "SCOUT REG baseline"
+python3 main.py train --config-file-path scout_config.yaml --notes "SCOUT REG baseline"
 ```
 
 Training writes checkpoints under:
@@ -143,7 +143,7 @@ Set `model_load_path` in the config to the checkpoint you want to evaluate, then
 run:
 
 ```bash
-python3 main.py test --config-file-path wsi_caption_reg_config.yaml
+python3 main.py test --config-file-path wsi_caption_config.yaml
 ```
 
 Test predictions are written to:
