@@ -22,12 +22,16 @@ for:
 ```text
 .
 ├── main.py                         # Typer CLI for train/test runs
+├── reports/                        # Example train/val/test split JSON files
 ├── crqs/                           # CRQS scoring pipelines and dataset configs
-├── *_config.yaml                   # Example training configs
+├── wsi_caption_config.yaml         # Example WSI Caption config
+├── histgen_config.yaml             # Example HistGen config
+├── scout_config.yaml               # Example SCOUT config
+├── bigen_config.yaml               # Example BiGen config
 ├── modules/
 │   ├── datamodules/                # Dataset and dataloader definitions
 │   ├── models/                     # Model wrappers and architectures
-│   ├── metrics/                    # BLEU/METEOR/ROUGE evaluation code
+│   ├── metrics/                    # COCO-style evaluation code and helpers
 │   ├── optimizers/
 │   ├── tokenizers/
 │   └── trainers/
@@ -79,29 +83,34 @@ list of examples with this shape:
 Feature files are expected to be HDF5 files named `<SLIDE_ID>.h5`. The required
 datasets inside each HDF5 file depend on the selected model:
 
-| `model_type` | Required config paths | Expected HDF5 datasets |
-| --- | --- | --- |
-| `wsi_caption` / `r2gen` | `data_path_patch` | `features` |
-| `histgen` | `data_path_patch` | `features` |
-| `bigen` | `data_path_patch`, `data_path_kb` | `features` in both directories |
-| `scout` | `data_path_slide`, `data_path_patch`, `data_path_concept` | `features` for slide/patch files, and `bag_feats_deep` plus `bag_feats` for concept files |
+| `model_type`   | Required config paths | Expected HDF5 datasets |
+|----------------| --- | --- |
+| `wsi_caption`  | `data_path_patch` | `features` |
+| `histgen`      | `data_path_patch` | `features` |
+| `bigen`        | `data_path_patch`, `data_path_kb` | `features` in both directories |
+| `scout`        | `data_path_slide`, `data_path_patch`, `data_path_concept` | `features` for slide/patch files, and `bag_feats_deep` plus `bag_feats` for concept files |
 
 The slide ids in the report JSON must match the HDF5 filenames without the
 `.h5` suffix.
 
+The repository already includes all split files under `reports/`:
+
+- `reports/reg_reports_splits.json`
+- `reports/histai_reports_splits.json`
+- `reports/tcga_reports_splits.json`
+
 ## Configure a Run
 
-Start from one of the provided configs:
+Start from one of the provided config templates:
 
-- `wsi_caption_reg_config.yaml`
-- `histgen_reg_config.yaml`
-- `bigen_reg_config.yaml`
-- `scout_reg_config.yaml`
-- `scout_tcga_brca_config.yaml`
+- `wsi_caption_config.yaml`
+- `histgen_config.yaml`
+- `bigen_config.yaml`
+- `scout_config.yaml`
 
 At minimum, update these fields for your environment:
 
-- `model_type`: one of `scout`, `wsi_caption`, `r2gen`, `histgen`, or `bigen`.
+- `model_type`: one of `scout`, `wsi_caption`, `histgen`, or `bigen`.
 - `reports_json_path`: path to the split JSON file.
 - Feature paths such as `data_path_patch`, `data_path_slide`,
   `data_path_concept`, and `data_path_kb`.
@@ -109,6 +118,13 @@ At minimum, update these fields for your environment:
 - `devices`: GPU count or comma-separated GPU ids, for example `1` or `0,1`.
 - `fast_dev_run`: set to `true` for a quick smoke test.
 - `model_load_path`: checkpoint path used by `test` or when `resume: true`.
+
+Model-specific notes:
+
+- `bigen` also requires `bank_path` in addition to `data_path_patch` and
+  `data_path_kb`.
+- `bigen_config.yaml` currently ships with `model_type: wsi_caption`; change it
+  to `model_type: bigen` before using that config.
 
 ## Train
 
@@ -150,6 +166,32 @@ Test predictions are written to:
 
 ```text
 <output_dir>/predictions.json
+```
+
+## Compute COCO-Style Metrics From Predictions
+
+The CLI also includes a `compute-metrics` command for scoring an existing
+prediction JSON without running model inference:
+
+```bash
+python3 main.py compute-metrics /path/to/predictions.json
+```
+
+Optionally set the output path for the per-sample metrics JSON:
+
+```bash
+python3 main.py compute-metrics /path/to/predictions.json --output-json-path /path/to/predictions_metrics.json
+```
+
+The input JSON must be keyed by case id with `pred` and `target` fields:
+
+```json
+{
+  "CASE_ID": {
+    "target": "Ground-truth pathology report text.",
+    "pred": "Generated pathology report text."
+  }
+}
 ```
 
 ## Calculate CRQS Scores
