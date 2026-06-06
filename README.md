@@ -119,12 +119,6 @@ At minimum, update these fields for your environment:
 - `fast_dev_run`: set to `true` for a quick smoke test.
 - `model_load_path`: checkpoint path used by `test` or when `resume: true`.
 
-Model-specific notes:
-
-- `bigen` also requires `bank_path` in addition to `data_path_patch` and
-  `data_path_kb`.
-- `bigen_config.yaml` currently ships with `model_type: wsi_caption`; change it
-  to `model_type: bigen` before using that config.
 
 ## Train
 

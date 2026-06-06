@@ -36,7 +36,7 @@ train:
   bank_path: <KB path>
   reports_json_path: reports/<json file path>
   model_load_path:
-  model_type: wsi_caption
+  model_type: bigen
   devices: 8
   fast_dev_run: false
   num_folds: 3
