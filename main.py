@@ -105,19 +105,9 @@ def build_datamodule(args, tokenizer):
     raise ValueError(f'Unsupported model_type: {model_type}')
 
 
-@app.command("compute-metrics")
-def compute_metrics(
-    input_json_path: str = typer.Argument(..., help="JSON file with id, prediction, and ground-truth text."),
-    output_json_path: Optional[str] = typer.Option(
-        None,
-        "--output-json-path",
-        "-o",
-        help="Path for the enriched per-sample metrics JSON.",
-    ),
-):
+def compute_metrics_for_json_file(input_path: Path, output_path: Path):
     from modules.metrics.metrics import compute_scores, compute_scores_per_sample
 
-    input_path = Path(input_json_path)
     with input_path.open("r") as f:
         data = json.load(f)
 
@@ -137,14 +127,54 @@ def compute_metrics(
         output_records.append(record)
         print(json.dumps(record, indent=2))
 
-    output_path = Path(output_json_path) if output_json_path else input_path.with_name(f"{input_path.stem}_metrics.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w") as f:
         json.dump(output_records, f, indent=2)
 
+    return overall_metrics
+
+
+@app.command("compute-metrics")
+def compute_metrics(
+    input_json_path: str = typer.Argument(..., help="JSON file with id, prediction, and ground-truth text."),
+    output_json_path: Optional[str] = typer.Option(
+        None,
+        "--output-json-path",
+        "-o",
+        help="Path for the enriched per-sample metrics JSON.",
+    ),
+):
+    input_path = Path(input_json_path)
+    output_path = Path(output_json_path) if output_json_path else input_path.with_name(f"{input_path.stem}_metrics.json")
+    overall_metrics = compute_metrics_for_json_file(input_path, output_path)
     print("Overall metrics:")
     print(json.dumps(overall_metrics, indent=2))
     print(f"Saved per-sample metrics JSON to {output_path}")
+
+
+@app.command("compute-metrics-dir")
+def compute_metrics_dir(
+    input_dir_path: str = typer.Argument(..., help="Directory containing prediction JSON files."),
+    output_dir_path: str = typer.Argument(..., help="Directory where per-sample metrics JSON files will be written."),
+):
+    input_dir = Path(input_dir_path)
+    output_dir = Path(output_dir_path)
+
+    if not input_dir.is_dir():
+        raise typer.BadParameter(f"Input path is not a directory: {input_dir}")
+
+    json_paths = sorted(path for path in input_dir.glob("*.json") if not path.stem.endswith("_metrics"))
+    if not json_paths:
+        typer.echo(f"No source JSON files found in {input_dir}")
+        return
+
+    for input_path in json_paths:
+        output_path = output_dir / f"{input_path.stem}_metrics.json"
+        typer.echo(f"Computing metrics for {input_path}")
+        overall_metrics = compute_metrics_for_json_file(input_path, output_path)
+        typer.echo("Overall metrics:")
+        typer.echo(json.dumps(overall_metrics, indent=2))
+        typer.echo(f"Saved per-sample metrics JSON to {output_path}")
 
 
 
