@@ -19,14 +19,14 @@ for:
 
 ## Architecture
 
-![PathBench architecture overview](pathReportEval_fig.png)
+![PathBench architecture overview](PathReportEval_fig.png)
 
 ## Repository Layout
 
 ```text
 .
 ├── main.py                         # Typer CLI for train/test runs
-├── pathReportEval_fig.png          # Main architecture figure
+├── PathReportEval_fig.png          # Main architecture figure
 ├── reports/                        # Example train/val/test split JSON files
 ├── crqs/                           # CRQS scoring pipelines and dataset configs
 ├── wsi_caption_config.yaml         # Example WSI Caption config
