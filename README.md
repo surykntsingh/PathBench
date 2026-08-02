@@ -15,7 +15,7 @@ for:
 - `wsi_caption` / `r2gen`: WSI captioning from patch embeddings.
 - `histgen`: HistGen-style report generation from patch embeddings.
 - `bigen`: report generation from patch embeddings plus a second knowledge-base
-  embedding stream.
+  embedding stream. 
 
 ## Architecture
 
