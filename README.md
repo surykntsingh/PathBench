@@ -12,14 +12,14 @@ for:
 
 - `scout`: report generation from slide-level, patch-level, and concept
   embeddings.
-- `wsi_caption` / `r2gen`: WSI captioning from patch embeddings.
+- `wsi_caption`: WSI captioning from patch embeddings.
 - `histgen`: HistGen-style report generation from patch embeddings.
 - `bigen`: report generation from patch embeddings plus a second knowledge-base
   embedding stream. 
 
 ## Architecture
 
-![PathBench architecture overview](pathReportEval_fig.png)
+![PathBench architecture overview](path_report_eval_fig.png)
 
 ## Repository Layout
 
