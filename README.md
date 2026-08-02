@@ -26,7 +26,7 @@ for:
 ```text
 .
 ├── main.py                         # Typer CLI for train/test runs
-├── pathReportEval_fig.png          # Main architecture figure
+├── path_report_eval_fig.png          # Main architecture figure
 ├── reports/                        # Example train/val/test split JSON files
 ├── crqs/                           # CRQS scoring pipelines and dataset configs
 ├── wsi_caption_config.yaml         # Example WSI Caption config
