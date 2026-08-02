@@ -19,15 +19,14 @@ for:
 
 ## Architecture
 
-The main PathBench architecture figure is available here:
-[path_report_eval_fig.pdf](path_report_eval_fig.pdf).
+![PathBench architecture overview](pathReportEval_fig.png)
 
 ## Repository Layout
 
 ```text
 .
 ├── main.py                         # Typer CLI for train/test runs
-├── path_report_eval_fig.pdf        # Main architecture figure
+├── pathReportEval_fig.png          # Main architecture figure
 ├── reports/                        # Example train/val/test split JSON files
 ├── crqs/                           # CRQS scoring pipelines and dataset configs
 ├── wsi_caption_config.yaml         # Example WSI Caption config
